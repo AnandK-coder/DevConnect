@@ -1,0 +1,242 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  password      String?
+  githubUsername String?
+  skills        String[]
+  experience    Int      @default(0)
+  location      String?
+  bio           String?
+  avatar        String?
+  website       String?
+  linkedin      String?
+  twitter       String?
+  role          UserRole  @default(USER)
+  subscription  Subscription @default(FREE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  projects      Project[]
+  jobMatches    JobMatch[]
+  applications  Application[]
+  codeReviews   CodeReview[]
+  interviews    Interview[]
+  communities   CommunityMember[]
+  
+  @@index([email])
+  @@index([githubUsername])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  COMPANY
+}
+
+enum Subscription {
+  FREE
+  PRO
+  COMPANY
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String
+  githubUrl   String
+  liveUrl     String?
+  techStack   String[]
+  stars       Int      @default(0)
+  forks       Int      @default(0)
+  views       Int      @default(0)
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([featured])
+}
+
+model Job {
+  id            String     @id @default(cuid())
+  title         String
+  company       String
+  description   String
+  requirements  String[]
+  location      String
+  remote        Boolean    @default(false)
+  salary        Int?
+  salaryCurrency String?   @default("USD")
+  jobType       JobType    @default(FULL_TIME)
+  experienceLevel String?  // JUNIOR, MID, SENIOR
+  companyLogo   String?
+  companyUrl    String?
+  postedAt      DateTime   @default(now())
+  expiresAt     DateTime?
+  active        Boolean    @default(true)
+  
+  matches       JobMatch[]
+  applications  Application[]
+  
+  @@index([active])
+  @@index([location])
+  @@index([remote])
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+}
+
+model JobMatch {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  score     Float    // 0-100
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, jobId])
+  @@index([userId, score])
+  @@index([jobId])
+}
+
+model Application {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status    ApplicationStatus @default(PENDING)
+  coverLetter String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@index([jobId])
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWED
+  INTERVIEW
+  ACCEPTED
+  REJECTED
+}
+
+model CodeReview {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  code        String   // Code snippet
+  language    String
+  qualityScore Float?   // AI-generated quality score
+  feedback    String?
+  reviewerId  String?  // If reviewed by another user
+  status      ReviewStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Interview {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   String?
+  position  String?
+  questions String[] // AI-generated questions
+  answers   String[] // User answers
+  score     Float?
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  type        CommunityType
+  techStack   String[] // For tech-based communities
+  location    String?  // For location-based communities
+  members     CommunityMember[]
+  createdAt   DateTime @default(now())
+  
+  @@index([type])
+}
+
+enum CommunityType {
+  TECH_STACK
+  LOCATION
+  EXPERIENCE_LEVEL
+  INTEREST
+}
+
+model CommunityMember {
+  id          String   @id @default(cuid())
+  userId      String
+  communityId String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  role        MemberRole @default(MEMBER)
+  joinedAt    DateTime @default(now())
+  
+  @@unique([userId, communityId])
+  @@index([userId])
+  @@index([communityId])
+}
+
+enum MemberRole {
+  MEMBER
+  ADMIN
+  MODERATOR
+}
+
+model SkillAnalytics {
+  id          String   @id @default(cuid())
+  userId      String
+  skill       String
+  proficiency Float    // 0-100
+  demand      Float    // Market demand score
+  trend       TrendType
+  createdAt   DateTime @default(now())
+  
+  @@unique([userId, skill])
+  @@index([userId])
+  @@index([skill])
+}
+
+enum TrendType {
+  RISING
+  STABLE
+  DECLINING
+}
+
