@@ -70,18 +70,17 @@ export default function JobDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    return <div className="page-shell flex items-center justify-center">Loading...</div>
   }
 
   if (!jobData) {
-    return <div className="min-h-screen flex items-center justify-center">Job not found</div>
+    return <div className="page-shell flex items-center justify-center">Job not found</div>
   }
 
   const matchScore = getMatchScore()
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="container mx-auto max-w-4xl">
+    <div className="page-shell max-w-4xl space-y-8">
         <Link href="/jobs">
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -175,7 +174,7 @@ export default function JobDetailPage() {
                   <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
                   <textarea
                     id="coverLetter"
-                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-2"
+                    className="field-base min-h-[140px]"
                     value={coverLetter}
                     onChange={(e) => setCoverLetter(e.target.value)}
                     placeholder="Tell them why you're a great fit..."
@@ -190,6 +189,7 @@ export default function JobDetailPage() {
         )}
 
         {!user && (
+        {!user && (
           <Card>
             <CardContent className="pt-6 text-center">
               <p className="text-muted-foreground mb-4">You need to be logged in to apply</p>
@@ -199,7 +199,6 @@ export default function JobDetailPage() {
             </CardContent>
           </Card>
         )}
-      </div>
     </div>
   )
 }

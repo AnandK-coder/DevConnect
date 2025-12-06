@@ -1,15 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Code, Home, Briefcase, User, BarChart3, LogOut, Shield } from 'lucide-react'
+import { Code, LogOut, Menu } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  const isAuthPage = ['/login', '/register', '/register-company'].some((segment) =>
+    pathname?.startsWith(segment)
+  )
 
   const checkUser = () => {
     const userStr = localStorage.getItem('user')
@@ -25,12 +31,15 @@ export default function Navbar() {
   }
 
   useEffect(() => {
+    setIsHydrated(true)
     checkUser()
   }, [])
 
   useEffect(() => {
-    checkUser()
-  }, [pathname])
+    if (isHydrated) {
+      checkUser()
+    }
+  }, [pathname, isHydrated])
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -47,101 +56,116 @@ export default function Navbar() {
     router.push('/login')
   }
 
-  return (
-    <nav className="sticky top-0 z-50 border-b border-white/10 bg-gradient-to-b from-slate-950/95 via-slate-950/90 to-slate-950/95 backdrop-blur-xl shadow-lg shadow-black/20">
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-purple-500/5" />
-      <div className="container mx-auto px-4 relative">
-        <div className="flex h-20 items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 text-white">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-purple-500 text-white">
-              <Code className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold leading-none">DevConnect</p>
-              <p className="text-xs uppercase tracking-[0.4rem] text-white/60">Signal first</p>
-            </div>
-          </Link>
+  const navItems = useMemo(() => {
+    const links = [
+      { label: 'Home', href: '/', show: true },
+      { label: 'Jobs', href: '/jobs', show: true },
+      {
+        label: 'Dashboard',
+        href: '/dashboard',
+        show: !!user && user.role === 'USER',
+      },
+      {
+        label: 'Company',
+        href: '/company',
+        show: !!user && (user.role === 'COMPANY' || user.role === 'ADMIN'),
+      },
+      {
+        label: 'Admin',
+        href: '/admin',
+        show: !!user && user.role === 'ADMIN',
+      },
+      {
+        label: 'Profile',
+        href: '/profile',
+        show: !!user && user.role !== 'ADMIN',
+      },
+    ]
+    return links.filter((link) => link.show)
+  }, [user])
 
-          <div className="flex items-center gap-2">
-            {user ? (
-              <>
-                {/* Regular user navigation - hide for admins and companies */}
-                {user.role === 'USER' && (
-                  <>
-                    <Link href="/dashboard" className="hidden lg:block">
-                      <Button variant="ghost" className="text-white hover:bg-white/10">
-                        <Home className="mr-2 h-4 w-4" />
-                        Dashboard
-                      </Button>
-                    </Link>
-                    <Link href="/jobs" className="hidden lg:block">
-                      <Button variant="ghost" className="text-white hover:bg-white/10">
-                        <Briefcase className="mr-2 h-4 w-4" />
-                        Jobs
-                      </Button>
-                    </Link>
-                    <Link href="/profile" className="hidden lg:block">
-                      <Button variant="ghost" className="text-white hover:bg-white/10">
-                        <User className="mr-2 h-4 w-4" />
-                        Profile
-                      </Button>
-                    </Link>
-                    <Link href="/dashboard" className="hidden lg:block">
-                      <Button variant="ghost" className="text-white hover:bg-white/10">
-                        <BarChart3 className="mr-2 h-4 w-4" />
-                        Analytics
-                      </Button>
-                    </Link>
-                  </>
-                )}
-                {/* Company navigation */}
-                {user.role === 'COMPANY' && (
-                  <Link href="/company" className="hidden lg:block">
-                    <Button variant="ghost" className="text-white hover:bg-white/10">
-                      <Briefcase className="mr-2 h-4 w-4" />
-                      Company Dashboard
-                    </Button>
-                  </Link>
-                )}
-                {/* Admin navigation */}
-                {user.role === 'ADMIN' && (
-                  <Link href="/admin" className="hidden lg:block">
-                    <Button variant="ghost" className="text-white hover:bg-white/10">
-                      <Shield className="mr-2 h-4 w-4" />
-                      Admin Dashboard
-                    </Button>
-                  </Link>
-                )}
-                <Button variant="ghost" onClick={handleLogout} className="text-white hover:bg-white/10">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button variant="ghost" className="text-white hover:bg-white/10">
-                    Login
-                  </Button>
-                </Link>
-                <div className="flex gap-2">
-                  <Link href="/register">
-                    <Button variant="ghost" className="text-white hover:bg-white/10">
-                      Sign Up
-                    </Button>
-                  </Link>
-                  <Link href="/register-company">
-                    <Button className="bg-white text-slate-900 hover:bg-white/90">
-                      Post Jobs
-                    </Button>
-                  </Link>
-                </div>
-              </>
-            )}
+  // Hide navbar on auth pages
+  if (isAuthPage) {
+    return null
+  }
+
+  const initials = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'
+  const isLoading = !isHydrated
+
+  return (
+    <nav className="sticky top-0 z-50 w-full border-b border-white/5 bg-black/30 backdrop-blur-3xl">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-primary/15 via-transparent to-cyan-400/10" />
+      <div className="relative mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-10">
+        <Link href="/" className="flex items-center gap-3 text-foreground">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-cyan-400 text-white shadow-[0_10px_35px_rgba(14,165,233,0.35)]">
+            <Code className="h-5 w-5" />
           </div>
+          <div className="flex flex-col">
+            <span className="text-base font-semibold leading-none tracking-wider uppercase text-white">DevConnect</span>
+            <span className="text-xs font-medium uppercase tracking-[0.4em] text-white/60">Signal first</span>
+          </div>
+        </Link>
+
+        <div className="hidden lg:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1">
+          {isLoading ? (
+            <div className="h-4 w-48 bg-white/5 rounded-full animate-pulse" />
+          ) : (
+            navItems.map((item) => {
+              const active = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'nav-link',
+                    active && 'bg-white/15 text-white'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              )
+            })
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {user ? (
+            <>
+              <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.4em] text-white/60">
+                <span>{user.role}</span>
+              </div>
+              <Button variant="ghost" className="hidden sm:inline-flex text-white/80 hover:text-white" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-sm font-semibold uppercase text-white">
+                {initials}
+              </div>
+            </>
+          ) : (
+            <>
+              <Link href="/login">
+                <Button variant="ghost" className="text-white/80 hover:text-white">
+                  Sign in
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button>
+                  Launch workspace
+                </Button>
+              </Link>
+              <Link href="/register-company" className="hidden xl:block">
+                <Button variant="secondary">
+                  Post jobs
+                </Button>
+              </Link>
+            </>
+          )}
+          <button className="inline-flex lg:hidden items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-2 text-white/70">
+            <Menu className="h-5 w-5" />
+          </button>
         </div>
       </div>
     </nav>
   )
 }
-

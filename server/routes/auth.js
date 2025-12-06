@@ -51,6 +51,7 @@ router.post('/register',
       password: hashedPassword,
       name,
       githubUsername,
+      skills: [],
       role: userRole,
       subscription: subscription,
       website: website || null
@@ -110,33 +111,47 @@ router.post('/login',
   async (req, res, next) => {
     try {
       const { email, password } = req.body;
+      
+      console.log('🔓 [LOGIN] Attempt:', email);
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
+      // Find user
+      const user = await prisma.user.findUnique({
+        where: { email }
+      });
 
-    if (!user || !user.password) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+      if (!user) {
+        console.log('❌ [LOGIN] User not found:', email);
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
 
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!user.password) {
+        console.log('❌ [LOGIN] No password set:', email);
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
 
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+      // Verify password
+      console.log('🔑 [LOGIN] Comparing passwords...');
+      const isValidPassword = await bcrypt.compare(password, user.password);
 
-    // Generate token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      config.jwt.secret,
-      { expiresIn: config.jwt.expiresIn }
-    );
+      if (!isValidPassword) {
+        console.log('❌ [LOGIN] Password mismatch for:', email);
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+      
+      console.log('✅ [LOGIN] Password verified');
 
-    logger.info('User logged in', { userId: user.id, email: user.email });
+      // Generate token
+      const token = jwt.sign(
+        { userId: user.id, email: user.email },
+        config.jwt.secret,
+        { expiresIn: config.jwt.expiresIn }
+      );
+
+      logger.info('User logged in', { userId: user.id, email: user.email });
 
       const { password: _, ...userWithoutPassword } = user;
+
+      console.log('🎫 [LOGIN] Success, returning token');
 
       res.json({
         message: 'Login successful',
@@ -144,6 +159,7 @@ router.post('/login',
         token
       });
     } catch (error) {
+      console.error('❌ [LOGIN] Error:', error.message);
       logger.error('Login error', { error: error.message, email: req.body.email });
       next(error);
     }

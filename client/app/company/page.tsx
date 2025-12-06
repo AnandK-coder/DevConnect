@@ -74,12 +74,12 @@ export default function CompanyDashboard() {
   const recentApplications = statsData?.recentApplications || []
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="container mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Company Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Manage your job postings and applications</p>
-        </div>
+    <div className="page-shell-wide space-y-8">
+      <div>
+        <p className="text-xs uppercase tracking-[0.5em] text-white/60">Hiring cockpit</p>
+        <h1 className="mt-3 text-3xl font-semibold">Company Dashboard</h1>
+        <p className="text-muted-foreground mt-2">Manage job postings, applications, and market signal in one view.</p>
+      </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 border-b">
@@ -342,7 +342,6 @@ export default function CompanyDashboard() {
             </CardContent>
           </Card>
         )}
-      </div>
     </div>
   )
 }

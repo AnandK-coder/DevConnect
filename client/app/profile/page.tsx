@@ -47,8 +47,7 @@ export default function ProfilePage() {
   if (!userId || profileLoading) return null
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="container mx-auto max-w-7xl">
+    <div className="page-shell-wide space-y-8">
         {/* Profile Header */}
         <Card className="mb-8">
           <CardHeader>
@@ -220,7 +219,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         )}
-      </div>
     </div>
   )
 }

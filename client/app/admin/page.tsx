@@ -88,12 +88,12 @@ export default function AdminDashboard() {
   const recentUsers = statsData?.recentUsers || []
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="container mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Manage jobs, users, and applications</p>
-        </div>
+    <div className="page-shell-wide space-y-8">
+      <div>
+        <p className="text-xs uppercase tracking-[0.5em] text-white/60">Platform command</p>
+        <h1 className="mt-3 text-3xl font-semibold">Admin Dashboard</h1>
+        <p className="text-muted-foreground mt-2">Manage jobs, users, and applications</p>
+      </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 border-b">
@@ -218,7 +218,7 @@ export default function AdminDashboard() {
                   <select
                     value={jobStatusFilter}
                     onChange={(e) => setJobStatusFilter(e.target.value)}
-                    className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="field-base"
                   >
                     <option value="all">All Jobs</option>
                     <option value="active">Active Only</option>
@@ -401,10 +401,10 @@ export default function AdminDashboard() {
                   <CardTitle>All Applications</CardTitle>
                   <CardDescription>Review and manage job applications</CardDescription>
                 </div>
-                <select
+                  <select
                   value={applicationStatusFilter}
                   onChange={(e) => setApplicationStatusFilter(e.target.value)}
-                  className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="field-base"
                 >
                   <option value="all">All Status</option>
                   <option value="PENDING">Pending</option>

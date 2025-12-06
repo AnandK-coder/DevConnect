@@ -53,16 +53,15 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="container mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Find Your Dream Job</h1>
-          <p className="text-muted-foreground">
-            Discover opportunities that match your skills and interests
-          </p>
-        </div>
+    <div className="page-shell-wide space-y-8">
+      <div>
+        <p className="text-xs uppercase tracking-[0.5em] text-white/60">Curated roles</p>
+        <h1 className="mt-3 text-3xl font-semibold">Find your next high-signal role</h1>
+        <p className="text-muted-foreground">
+          Discover opportunities that match your skills, pace, and product instincts.
+        </p>
+      </div>
 
-        {/* Filters */}
         <Card className="mb-8">
           <CardContent className="pt-6">
             <div className="space-y-4">
@@ -99,7 +98,7 @@ export default function JobsPage() {
                   <div>
                     <label className="text-sm font-medium mb-2 block">Remote</label>
                     <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="field-base"
                       value={remote}
                       onChange={(e) => setRemote(e.target.value)}
                     >
@@ -112,7 +111,7 @@ export default function JobsPage() {
                   <div>
                     <label className="text-sm font-medium mb-2 block">Job Type</label>
                     <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="field-base"
                       value={jobType}
                       onChange={(e) => setJobType(e.target.value)}
                     >
@@ -127,7 +126,7 @@ export default function JobsPage() {
                   <div>
                     <label className="text-sm font-medium mb-2 block">Experience</label>
                     <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="field-base"
                       value={experienceLevel}
                       onChange={(e) => setExperienceLevel(e.target.value)}
                     >
@@ -278,7 +277,7 @@ export default function JobsPage() {
           </Card>
         )}
       </div>
-    </div>
+    
   )
 }
 
