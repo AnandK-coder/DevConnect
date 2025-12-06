@@ -167,6 +167,38 @@ router.put('/', authMiddleware, [
   }
 });
 
+// Sync LinkedIn profile
+router.post('/sync-linkedin', authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if LinkedIn is connected (has linkedin field set)
+    if (!user.linkedin) {
+      return res.status(400).json({ 
+        message: 'LinkedIn not connected. Please connect your LinkedIn account first using OAuth.' 
+      });
+    }
+
+    // For manual sync, we need the access token
+    // In production, store this securely in database
+    // For now, return a message to use OAuth
+    return res.status(400).json({
+      message: 'Please use the "Connect LinkedIn" button to sync your profile. Manual sync requires OAuth authentication.'
+    });
+  } catch (error) {
+    console.error('Sync LinkedIn Error:', error);
+    res.status(500).json({ 
+      message: error.message || 'Failed to sync LinkedIn profile' 
+    });
+  }
+});
+
 // Sync GitHub repositories
 router.post('/sync-github', authMiddleware, async (req, res) => {
   try {

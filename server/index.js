@@ -20,8 +20,10 @@ const matchingRoutes = require('./routes/matching');
 const codeReviewRoutes = require('./routes/codeReview');
 const paymentRoutes = require('./routes/payment');
 const githubOAuthRoutes = require('./routes/githubOAuth');
+const linkedinOAuthRoutes = require('./routes/linkedinOAuth');
 const adminRoutes = require('./routes/admin');
 const companyRoutes = require('./routes/company');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 
@@ -73,11 +75,13 @@ app.use('/api/jobs', jobsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/github-oauth', githubOAuthRoutes);
+app.use('/api/linkedin', linkedinOAuthRoutes);
 app.use('/api/matching', matchingLimiter, matchingRoutes);
 app.use('/api/code-review', codeReviewRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check with database connectivity
 app.get('/api/health', async (req, res) => {

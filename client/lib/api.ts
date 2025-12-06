@@ -34,6 +34,7 @@ export const profileAPI = {
   getProfile: (id: string) => api.get(`/profile/${id}`),
   updateProfile: (data: any) => api.put('/profile', data),
   syncGitHub: () => api.post('/profile/sync-github'),
+  syncLinkedIn: () => api.post('/profile/sync-linkedin'),
   getProjects: (id: string) => api.get(`/profile/${id}/projects`),
   createProject: (data: any) => api.post('/profile/projects', data),
 }
@@ -60,6 +61,7 @@ export const matchingAPI = {
 export const analyticsAPI = {
   getSkillAnalytics: () => api.get('/analytics/skills'),
   getTrends: (params?: any) => api.get('/analytics/trends', { params }),
+  getTrending: () => api.get('/analytics/trending'),
   getSalaryInsights: () => api.get('/analytics/salary'),
 }
 
@@ -71,6 +73,10 @@ export const githubAPI = {
     api.get(`/github/profile/${username}`),
   getLanguages: (username: string, repo: string) =>
     api.get(`/github/repositories/${username}/${repo}/languages`),
+  getCommits: (username: string, limit?: number) =>
+    api.get(`/github/commits/${username}`, { params: { limit } }),
+  getCommitActivity: (username: string, days?: number) =>
+    api.get(`/github/commits/${username}/activity`, { params: { days } }),
 }
 
 // Code Review API
@@ -92,6 +98,11 @@ export const githubOAuthAPI = {
   authorize: () => api.get('/github-oauth/authorize'),
 }
 
+// LinkedIn OAuth API
+export const linkedinOAuthAPI = {
+  authorize: () => api.get('/linkedin/authorize'),
+}
+
 // Admin API
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
@@ -110,6 +121,12 @@ export const companyAPI = {
   createJob: (data: any) => api.post('/company/jobs', data),
   getApplications: (params?: any) => api.get('/company/applications', { params }),
   updateApplicationStatus: (id: string, status: string) => api.patch(`/company/applications/${id}/status`, { status }),
+}
+
+// Notifications API
+export const notificationsAPI = {
+  getNotifications: () => api.get('/notifications'),
+  markAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
 }
 
 export default api

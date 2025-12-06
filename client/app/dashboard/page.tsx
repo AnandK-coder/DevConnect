@@ -6,8 +6,11 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { matchingAPI, analyticsAPI } from '@/lib/api'
-import { Briefcase, TrendingUp, Users, Code, Github, Linkedin, User } from 'lucide-react'
+import { Briefcase, TrendingUp, Users, Code, Github, Linkedin, User, Zap, ArrowUpRight, Bell } from 'lucide-react'
 import Link from 'next/link'
+import TrendingChart from '@/components/TrendingChart'
+import SkillsComparison from '@/components/SkillsComparison'
+import { notificationsAPI } from '@/lib/api'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -44,6 +47,27 @@ export default function DashboardPage() {
       return res.data.analytics
     },
     enabled: !!user && user.role !== 'ADMIN'
+  })
+
+  const { data: trendingTechs, isLoading: trendingLoading } = useQuery({
+    queryKey: ['trendingTechnologies'],
+    queryFn: async () => {
+      const res = await analyticsAPI.getTrending()
+      return res.data.trends
+    },
+    enabled: !!user && user.role !== 'ADMIN',
+    refetchInterval: 3600000, // Refetch every hour
+    staleTime: 1800000 // Consider stale after 30 minutes
+  })
+
+  const { data: notifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      const res = await notificationsAPI.getNotifications()
+      return res.data.notifications
+    },
+    enabled: !!user && user.role !== 'ADMIN',
+    refetchInterval: 300000 // Refetch every 5 minutes
   })
 
   if (!user) return null
@@ -176,6 +200,98 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* Notifications */}
+        {notifications && notifications.length > 0 && (
+          <Card className="border-primary/50 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-primary" />
+                New Notifications
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {notifications.slice(0, 3).map((notif: any) => (
+                  <div key={notif.id} className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                    <p className="text-sm font-medium">{notif.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{notif.message}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Skills Comparison */}
+        {user.skills && trendingTechs?.technologies && (
+          <SkillsComparison 
+            userSkills={user.skills} 
+            trendingTechs={trendingTechs.technologies} 
+          />
+        )}
+
+        {/* Trending Technologies Chart */}
+        {trendingTechs?.technologies && (
+          <TrendingChart 
+            technologies={trendingTechs.technologies}
+            userSkills={user.skills}
+          />
+        )}
+
+        {/* Trending Technologies Badges */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Trending Technologies</CardTitle>
+                <CardDescription>
+                  Current hot technologies in the market (Updated regularly)
+                </CardDescription>
+              </div>
+              <Zap className="h-5 w-5 text-primary" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {trendingLoading ? (
+              <p className="text-muted-foreground">Loading trends...</p>
+            ) : trendingTechs?.technologies && trendingTechs.technologies.length > 0 ? (
+              <div className="w-full overflow-hidden">
+                <div className="flex flex-wrap gap-2 mb-4 w-full">
+                  {trendingTechs.technologies.slice(0, 15).map((tech: any, index: number) => (
+                    <div
+                      key={tech.name}
+                      className="group relative px-3 py-1.5 rounded-lg bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 hover:border-primary/50 transition-all cursor-pointer flex-shrink-0 max-w-full"
+                    >
+                      <div className="flex items-center gap-2 max-w-full">
+                        <span className="text-sm font-medium truncate max-w-[120px]">{tech.name}</span>
+                        {index < 5 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary flex-shrink-0">
+                            🔥
+                          </span>
+                        )}
+                      </div>
+                      <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded px-2 py-1 shadow-lg z-10 whitespace-nowrap">
+                        Popularity: {tech.popularity.toLocaleString()}
+                        {tech.trend === 'RISING' && ' • Rising'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground mt-4 pt-4 border-t">
+                  <span>
+                    Last updated: {trendingTechs.updatedAt ? new Date(trendingTechs.updatedAt).toLocaleString() : 'Just now'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    Sources: {trendingTechs.sources?.join(', ') || 'GitHub'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No trending data available</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Quick Actions */}
         <Card>
           <CardHeader>
@@ -229,7 +345,7 @@ export default function DashboardPage() {
               </Link>
 
               {/* Connect LinkedIn */}
-              <Link href="#" className="group">
+              <Link href="/profile" className="group">
                 <div className="relative h-24 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/30 p-4 hover:border-sky-400/50 hover:shadow-lg hover:shadow-sky-500/20 transition-all duration-300 hover:scale-105 cursor-pointer">
                   <div className="flex flex-col h-full justify-between">
                     <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white">

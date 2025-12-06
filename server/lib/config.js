@@ -59,6 +59,11 @@ const config = {
     token: process.env.GITHUB_TOKEN
   },
   
+  linkedin: {
+    clientId: process.env.LINKEDIN_CLIENT_ID,
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET
+  },
+  
   openai: {
     apiKey: process.env.OPENAI_API_KEY
   },

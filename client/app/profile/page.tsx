@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { profileAPI, analyticsAPI } from '@/lib/api'
-import { Star, GitFork, ExternalLink, Github } from 'lucide-react'
+import { profileAPI, analyticsAPI, githubAPI, linkedinOAuthAPI } from '@/lib/api'
+import { Star, GitFork, ExternalLink, Github, GitCommit, Calendar, Clock, Linkedin } from 'lucide-react'
 import Link from 'next/link'
+import CommitActivityChart from '@/components/CommitActivityChart'
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -44,6 +45,26 @@ export default function ProfilePage() {
     enabled: userRole !== 'ADMIN' // Don't fetch analytics for admins
   })
 
+  const { data: commits, isLoading: commitsLoading } = useQuery({
+    queryKey: ['commits', profile?.githubUsername],
+    queryFn: async () => {
+      if (!profile?.githubUsername) return null
+      const res = await githubAPI.getCommits(profile.githubUsername, 20)
+      return res.data.commits
+    },
+    enabled: !!profile?.githubUsername && userRole !== 'ADMIN'
+  })
+
+  const { data: commitActivity } = useQuery({
+    queryKey: ['commitActivity', profile?.githubUsername],
+    queryFn: async () => {
+      if (!profile?.githubUsername) return null
+      const res = await githubAPI.getCommitActivity(profile.githubUsername, 30)
+      return res.data.activity
+    },
+    enabled: !!profile?.githubUsername && userRole !== 'ADMIN'
+  })
+
   if (!userId || profileLoading) return null
 
   return (
@@ -66,33 +87,81 @@ export default function ProfilePage() {
                 Edit Profile
               </Button>
             </div>
-            {profile?.githubUsername && (
-              <div className="mt-4 flex items-center gap-2">
-                <Github className="h-5 w-5" />
-                <Link
-                  href={`https://github.com/${profile.githubUsername}`}
-                  target="_blank"
-                  className="text-primary hover:underline"
-                >
-                  @{profile.githubUsername}
-                </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const response = await profileAPI.syncGitHub()
-                      alert(`Successfully synced ${response.data.syncedProjects} repositories!`)
-                      window.location.reload()
-                    } catch (error: any) {
-                      alert(error.response?.data?.message || 'Failed to sync GitHub repositories')
-                    }
-                  }}
-                >
-                  Sync GitHub
-                </Button>
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              {profile?.githubUsername && (
+                <div className="flex items-center gap-2">
+                  <Github className="h-5 w-5" />
+                  <Link
+                    href={`https://github.com/${profile.githubUsername}`}
+                    target="_blank"
+                    className="text-primary hover:underline"
+                  >
+                    @{profile.githubUsername}
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const response = await profileAPI.syncGitHub()
+                        alert(`Successfully synced ${response.data.syncedProjects} repositories!`)
+                        window.location.reload()
+                      } catch (error: any) {
+                        alert(error.response?.data?.message || 'Failed to sync GitHub repositories')
+                      }
+                    }}
+                  >
+                    Sync GitHub
+                  </Button>
+                </div>
+              )}
+              
+              {/* LinkedIn Connection */}
+              <div className="flex items-center gap-2">
+                <Linkedin className="h-5 w-5" />
+                {profile?.linkedin ? (
+                  <>
+                    <Link
+                      href={`https://www.linkedin.com/in/${profile.linkedin}`}
+                      target="_blank"
+                      className="text-primary hover:underline"
+                    >
+                      LinkedIn Connected
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await profileAPI.syncLinkedIn()
+                          alert('LinkedIn profile synced successfully!')
+                          window.location.reload()
+                        } catch (error: any) {
+                          alert(error.response?.data?.message || 'Failed to sync LinkedIn profile. Please reconnect using OAuth.')
+                        }
+                      }}
+                    >
+                      Sync LinkedIn
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const response = await linkedinOAuthAPI.authorize()
+                        window.location.href = response.data.authUrl
+                      } catch (error: any) {
+                        alert(error.response?.data?.message || 'Failed to initiate LinkedIn connection')
+                      }
+                    }}
+                  >
+                    Connect LinkedIn
+                  </Button>
+                )}
               </div>
-            )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -152,6 +221,92 @@ export default function ProfilePage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Commit Activity Chart */}
+        {userRole !== 'ADMIN' && profile?.githubUsername && commitActivity && (
+          <CommitActivityChart activity={commitActivity} />
+        )}
+
+        {/* GitHub Commits - Only for regular users */}
+        {userRole !== 'ADMIN' && profile?.githubUsername && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent GitHub Commits</CardTitle>
+              <CardDescription>
+                Your latest code contributions
+                {commitActivity && (
+                  <span className="ml-2 text-primary">
+                    • {commitActivity.totalCommits} commits in last 30 days
+                  </span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {commitsLoading ? (
+                <p className="text-muted-foreground">Loading commits...</p>
+              ) : commits && commits.length > 0 ? (
+                <div className="space-y-3">
+                  {commits.slice(0, 10).map((commit: any) => (
+                    <div
+                      key={commit.sha}
+                      className="border rounded-lg p-3 hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <GitCommit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <p className="text-sm font-medium truncate">{commit.message}</p>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
+                            <div className="flex items-center gap-1">
+                              <Github className="h-3 w-3" />
+                              <span className="truncate">{commit.repository}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span>{new Date(commit.date).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span>{commit.author}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <a
+                          href={commit.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-shrink-0 text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                  {commits.length > 10 && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      asChild
+                    >
+                      <a
+                        href={`https://github.com/${profile.githubUsername}?tab=repositories`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View All on GitHub
+                        <ExternalLink className="h-4 w-4 ml-2" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  No commits found. Make sure your repositories are public.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

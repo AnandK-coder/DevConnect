@@ -94,6 +94,166 @@ async function getUserProfile(username, token = null) {
 }
 
 /**
+ * Get user's GitHub commits
+ */
+async function getUserCommits(username, token = null, limit = 30) {
+  try {
+    // Check if GitHub token is available
+    const githubToken = token || process.env.GITHUB_TOKEN || process.env.GITHUB_CLIENT_SECRET;
+    if (!githubToken) {
+      console.warn('GitHub token not configured. Cannot fetch commits.');
+      return [];
+    }
+
+    const octokit = getOctokit(token);
+    
+    // Get user's repositories
+    let repos;
+    try {
+      repos = await getUserRepositories(username, token);
+    } catch (error) {
+      // If repositories can't be fetched, return empty array
+      console.warn('Could not fetch repositories for commits:', error.message);
+      return [];
+    }
+    
+    if (!repos || repos.length === 0) {
+      return [];
+    }
+    
+    // Get commits from all repositories
+    const allCommits = [];
+    
+    for (const repo of repos.slice(0, 10)) { // Limit to 10 repos to avoid rate limits
+      try {
+        const { data: commits } = await octokit.rest.repos.listCommits({
+          owner: username,
+          repo: repo.name,
+          per_page: 10,
+          sort: 'updated',
+          order: 'desc'
+        });
+
+        if (commits && Array.isArray(commits)) {
+          commits.forEach(commit => {
+            if (commit && commit.commit) {
+              allCommits.push({
+                sha: commit.sha,
+                message: commit.commit.message,
+                author: commit.commit.author?.name || 'Unknown',
+                date: commit.commit.author?.date || new Date().toISOString(),
+                url: commit.html_url,
+                repository: repo.name,
+                repositoryUrl: repo.url
+              });
+            }
+          });
+        }
+      } catch (error) {
+        // Skip repos that can't be accessed
+        console.warn(`Could not fetch commits for ${repo.name}:`, error.message);
+      }
+    }
+
+    // Sort by date (newest first) and limit
+    allCommits.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    return allCommits.slice(0, limit);
+  } catch (error) {
+    console.error('GitHub Commits Error:', error.message || error);
+    // Return empty array instead of throwing error
+    return [];
+  }
+}
+
+/**
+ * Get commit activity for a user
+ */
+async function getUserCommitActivity(username, token = null, days = 30) {
+  try {
+    const commits = await getUserCommits(username, token, 100);
+    
+    // If no commits, return empty activity
+    if (!commits || commits.length === 0) {
+      const activityArray = [];
+      const now = new Date();
+      const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      
+      for (let i = 0; i < days; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + i);
+        const dateKey = date.toISOString().split('T')[0];
+        activityArray.push({
+          date: dateKey,
+          commits: 0
+        });
+      }
+      
+      return {
+        totalCommits: 0,
+        dailyActivity: activityArray,
+        recentCommits: []
+      };
+    }
+    
+    // Group commits by date
+    const activity = {};
+    const now = new Date();
+    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    commits.forEach(commit => {
+      if (commit && commit.date) {
+        const commitDate = new Date(commit.date);
+        if (commitDate >= startDate) {
+          const dateKey = commitDate.toISOString().split('T')[0];
+          activity[dateKey] = (activity[dateKey] || 0) + 1;
+        }
+      }
+    });
+
+    // Create array of daily activity
+    const activityArray = [];
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateKey = date.toISOString().split('T')[0];
+      activityArray.push({
+        date: dateKey,
+        commits: activity[dateKey] || 0
+      });
+    }
+
+    return {
+      totalCommits: commits.length,
+      dailyActivity: activityArray,
+      recentCommits: commits.slice(0, 20)
+    };
+  } catch (error) {
+    console.error('Commit Activity Error:', error.message || error);
+    // Return empty activity instead of throwing error
+    const activityArray = [];
+    const now = new Date();
+    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateKey = date.toISOString().split('T')[0];
+      activityArray.push({
+        date: dateKey,
+        commits: 0
+      });
+    }
+    
+    return {
+      totalCommits: 0,
+      dailyActivity: activityArray,
+      recentCommits: []
+    };
+  }
+}
+
+/**
  * Sync user's GitHub repositories to database
  */
 async function syncUserRepositories(userId, githubUsername, token = null, prisma) {
@@ -172,6 +332,8 @@ module.exports = {
   getUserRepositories,
   getRepositoryLanguages,
   getUserProfile,
+  getUserCommits,
+  getUserCommitActivity,
   syncUserRepositories
 };
 

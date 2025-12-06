@@ -97,7 +97,7 @@ export default function JobDetailPage() {
               </div>
               {matchScore !== undefined && (
                 <div className="px-4 py-2 rounded-full bg-primary/10 text-primary font-semibold">
-                  {matchScore.toFixed(0)}% match
+                  
                 </div>
               )}
             </div>
@@ -188,7 +188,6 @@ export default function JobDetailPage() {
           </Card>
         )}
 
-        {!user && (
         {!user && (
           <Card>
             <CardContent className="pt-6 text-center">

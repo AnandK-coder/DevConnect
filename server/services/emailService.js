@@ -149,10 +149,51 @@ async function sendPasswordResetEmail(user, resetToken) {
   }
 }
 
+/**
+ * Send trending technologies notification
+ */
+async function sendTrendingTechNotification(user, trendingTechs) {
+  if (!process.env.SMTP_USER) {
+    console.log('Email service not configured. Skipping trending tech notification.');
+    return;
+  }
+
+  try {
+    const techList = trendingTechs.map(tech => 
+      `<li style="margin: 10px 0;">
+        <strong>${tech.name}</strong> - ${tech.popularity.toLocaleString()} popularity
+        ${tech.trend === 'RISING' ? '<span style="color: #10b981;">🔥 Rising</span>' : ''}
+      </li>`
+    ).join('');
+
+    await transporter.sendMail({
+      from: `"DevConnect" <${process.env.SMTP_USER}>`,
+      to: user.email,
+      subject: `🔥 New Trending Technologies You Should Know!`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #3b82f6;">New Trending Technologies, ${user.name}!</h1>
+          <p>We've identified some hot technologies that are trending in the market right now:</p>
+          <ul style="list-style: none; padding: 0;">
+            ${techList}
+          </ul>
+          <p>Consider learning these to stay competitive in the job market!</p>
+          <a href="${config.clientUrl}/dashboard" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">
+            View All Trends
+          </a>
+        </div>
+      `
+    });
+  } catch (error) {
+    console.error('Error sending trending tech notification:', error);
+  }
+}
+
 module.exports = {
   sendWelcomeEmail,
   sendJobMatchEmail,
   sendApplicationConfirmation,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendTrendingTechNotification
 };
 

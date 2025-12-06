@@ -89,6 +89,19 @@ router.get('/trends', async (req, res) => {
   }
 });
 
+// Get trending technologies
+router.get('/trending', async (req, res) => {
+  try {
+    const trendingService = require('../services/trendingService');
+    const trends = await trendingService.getTrendingTechnologies();
+    
+    res.json({ trends });
+  } catch (error) {
+    console.error('Get Trending Technologies Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // Get salary insights
 router.get('/salary', authMiddleware, async (req, res) => {
   try {

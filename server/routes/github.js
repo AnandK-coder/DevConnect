@@ -47,5 +47,35 @@ router.get('/repositories/:username/:repo/languages', async (req, res) => {
   }
 });
 
+// Get user's GitHub commits
+router.get('/commits/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { limit = 30 } = req.query;
+
+    const commits = await githubService.getUserCommits(username, null, parseInt(limit));
+
+    res.json({ commits });
+  } catch (error) {
+    console.error('Get Commits Error:', error);
+    res.status(500).json({ message: error.message || 'Failed to fetch commits' });
+  }
+});
+
+// Get user's commit activity
+router.get('/commits/:username/activity', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { days = 30 } = req.query;
+
+    const activity = await githubService.getUserCommitActivity(username, null, parseInt(days));
+
+    res.json({ activity });
+  } catch (error) {
+    console.error('Get Commit Activity Error:', error);
+    res.status(500).json({ message: error.message || 'Failed to fetch commit activity' });
+  }
+});
+
 module.exports = router;
 
