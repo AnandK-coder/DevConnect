@@ -84,11 +84,6 @@ export default function Navbar() {
     return links.filter((link) => link.show)
   }, [user])
 
-  // Hide navbar on auth pages
-  if (isAuthPage) {
-    return null
-  }
-
   const initials = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'
   const isLoading = !isHydrated
 
@@ -138,27 +133,42 @@ export default function Navbar() {
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
               </Button>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-sm font-semibold uppercase text-white">
-                {initials}
-              </div>
+              <Link href="/profile">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-sm font-semibold uppercase text-white cursor-pointer hover:bg-white/20 transition-colors">
+                  {initials}
+                </div>
+              </Link>
             </>
           ) : (
             <>
-              <Link href="/login">
-                <Button variant="ghost" className="text-white/80 hover:text-white">
-                  Sign in
-                </Button>
-              </Link>
-              <Link href="/register">
-                <Button>
-                  Launch workspace
-                </Button>
-              </Link>
-              <Link href="/register-company" className="hidden xl:block">
-                <Button variant="secondary">
-                  Post jobs
-                </Button>
-              </Link>
+              {!isAuthPage && (
+                <>
+                  <Link href="/login">
+                    <Button variant="ghost" className="text-white/80 hover:text-white">
+                      Sign in
+                    </Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button>
+                      Launch workspace
+                    </Button>
+                  </Link>
+                  <Link href="/register-company" className="hidden xl:block">
+                    <Button variant="secondary">
+                      Post jobs
+                    </Button>
+                  </Link>
+                </>
+              )}
+              {isAuthPage && (
+                <div className="flex items-center gap-2 text-sm text-white/60">
+                  {pathname === '/login' ? (
+                    <span>Don't have an account? <Link href="/register" className="text-primary hover:underline">Sign up</Link></span>
+                  ) : (
+                    <span>Already have an account? <Link href="/login" className="text-primary hover:underline">Sign in</Link></span>
+                  )}
+                </div>
+              )}
             </>
           )}
           <button className="inline-flex lg:hidden items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-2 text-white/70">

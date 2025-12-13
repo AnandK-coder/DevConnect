@@ -65,6 +65,10 @@ GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
 GITHUB_TOKEN=your-github-token
 
+# LinkedIn OAuth
+LINKEDIN_CLIENT_ID=your-linkedin-client-id
+LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
+
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key-here
 
@@ -93,6 +97,26 @@ NEXTAUTH_URL=http://localhost:3000
 2. Click "New OAuth App"
 3. Fill in:
    - Application name: DevConnect
+   - Homepage URL: http://localhost:3000
+   - Authorization callback URL: http://localhost:3000/api/github/callback
+4. Click "Register application"
+5. Copy **Client ID** and **Client Secret** to your `.env` file
+
+## Step 5: LinkedIn OAuth Setup
+
+See [LINKEDIN_SETUP.md](./LINKEDIN_SETUP.md) for detailed step-by-step instructions.
+
+**Quick Setup:**
+1. Go to [LinkedIn Developers Portal](https://www.linkedin.com/developers/)
+2. Create a new app
+3. Get Client ID and Client Secret from "Auth" tab
+4. Add redirect URL: `http://localhost:3000/api/linkedin/callback`
+5. Request "Sign In with LinkedIn using OpenID Connect" product
+6. Add to `.env`:
+   ```env
+   LINKEDIN_CLIENT_ID=your-linkedin-client-id
+   LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
+   ```
    - Homepage URL: http://localhost:3000
    - Authorization callback URL: http://localhost:5000/api/auth/github/callback
 4. Copy Client ID and Client Secret to `.env` files

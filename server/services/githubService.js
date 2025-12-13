@@ -9,9 +9,12 @@ function getOctokit(token = null) {
   }
   
   // Use app credentials if available
-  return new Octokit({
-    auth: process.env.GITHUB_TOKEN || process.env.GITHUB_CLIENT_SECRET
-  });
+  const appToken = process.env.GITHUB_TOKEN || process.env.GITHUB_CLIENT_SECRET;
+  if (!appToken) {
+    throw new Error('GitHub token not configured. Please set GITHUB_TOKEN or GITHUB_CLIENT_SECRET in environment variables.');
+  }
+  
+  return new Octokit({ auth: appToken });
 }
 
 /**
@@ -19,6 +22,12 @@ function getOctokit(token = null) {
  */
 async function getUserRepositories(username, token = null) {
   try {
+    // Check if we have a token before making API call
+    if (!token && !process.env.GITHUB_TOKEN && !process.env.GITHUB_CLIENT_SECRET) {
+      console.warn('GitHub token not configured. Cannot fetch repositories.');
+      return [];
+    }
+
     const octokit = getOctokit(token);
     const { data } = await octokit.rest.repos.listForUser({
       username,
@@ -43,7 +52,15 @@ async function getUserRepositories(username, token = null) {
     }));
   } catch (error) {
     console.error('GitHub API Error:', error);
-    throw new Error('Failed to fetch repositories');
+    
+    // Handle authentication errors gracefully
+    if (error.status === 401 || error.message?.includes('Bad credentials')) {
+      console.warn('GitHub authentication failed. Token may be invalid or expired.');
+      return []; // Return empty array instead of throwing
+    }
+    
+    // For other errors, return empty array to allow app to continue
+    return [];
   }
 }
 
@@ -258,7 +275,18 @@ async function getUserCommitActivity(username, token = null, days = 30) {
  */
 async function syncUserRepositories(userId, githubUsername, token = null, prisma) {
   try {
+    // Check if we have a token before attempting sync
+    if (!token && !process.env.GITHUB_TOKEN && !process.env.GITHUB_CLIENT_SECRET) {
+      throw new Error('GitHub token not configured. Please set GITHUB_TOKEN or GITHUB_CLIENT_SECRET in environment variables. For public repositories, you can still view them but syncing requires authentication.');
+    }
+
     const repos = await getUserRepositories(githubUsername, token);
+    
+    // If no repos returned and it's not due to empty account, warn user
+    if (repos.length === 0) {
+      console.warn(`No repositories found for ${githubUsername}. This could be due to: missing token, invalid credentials, or no public repositories.`);
+    }
+    
     const projects = [];
 
     for (const repo of repos) {

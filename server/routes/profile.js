@@ -218,15 +218,16 @@ router.post('/sync-github', authMiddleware, async (req, res) => {
 
     console.log(`Syncing GitHub for user ${user.id} with username: ${user.githubUsername}`);
 
-    const projectIds = await githubService.syncUserRepositories(
-      user.id,
-      user.githubUsername,
-      null, // token - implement OAuth token storage in production
-      prisma
-    );
+    try {
+      const projectIds = await githubService.syncUserRepositories(
+        user.id,
+        user.githubUsername,
+        null, // token - implement OAuth token storage in production
+        prisma
+      );
 
-    // Fetch updated user with projects
-    const updatedUser = await prisma.user.findUnique({
+      // Fetch updated user with projects
+      const updatedUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: {
         id: true,
@@ -251,15 +252,33 @@ router.post('/sync-github', authMiddleware, async (req, res) => {
       }
     });
 
-    res.json({
-      message: `Successfully synced ${projectIds.length} repositories from GitHub`,
-      syncedProjects: projectIds.length,
-      user: updatedUser
-    });
+      res.json({
+        message: `Successfully synced ${projectIds.length} repositories from GitHub`,
+        syncedProjects: projectIds.length,
+        user: updatedUser
+      });
+    } catch (syncError) {
+      // Re-throw to be caught by outer catch block
+      throw syncError;
+    }
   } catch (error) {
     console.error('Sync GitHub Error:', error);
     
     // Provide more specific error messages
+    if (error.message?.includes('token not configured') || error.message?.includes('GITHUB_TOKEN')) {
+      return res.status(400).json({ 
+        message: 'GitHub token not configured. Please contact the administrator to set up GitHub integration. You can still view public repositories, but syncing requires authentication.',
+        requiresAuth: true
+      });
+    }
+    
+    if (error.message?.includes('401') || error.message?.includes('Bad credentials')) {
+      return res.status(401).json({ 
+        message: 'GitHub authentication failed. The token may be invalid or expired. Please contact the administrator.',
+        requiresAuth: true
+      });
+    }
+    
     if (error.message?.includes('404') || error.message?.includes('Not Found')) {
       return res.status(404).json({ 
         message: 'GitHub username not found. Please check your username and try again.' 

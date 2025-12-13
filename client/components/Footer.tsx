@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Mail, Github, Linkedin, Twitter, MapPin, Phone, ArrowUpRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -40,52 +41,57 @@ const linkGroups = [
 const socialIcons = [Github, Linkedin, Twitter]
 
 export default function Footer() {
+  const pathname = usePathname()
   const currentYear = new Date().getFullYear()
+  const isHomePage = pathname === '/'
 
   return (
     <footer className="relative mt-24 border-t border-white/5 bg-black/50 backdrop-blur-3xl">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent opacity-20" />
-      <div className="relative page-shell-wide flex flex-col gap-12">
-        <div className="grid gap-10 rounded-[32px] border border-white/5 bg-white/[0.03] p-10 shadow-[0_20px_80px_rgba(2,6,23,0.55)] backdrop-blur-2xl lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            <p className="text-xs uppercase tracking-[0.6em] text-white/60">DevConnect</p>
-            <h2 className="text-4xl font-semibold leading-tight text-white lg:text-5xl">
-              Precision hiring infrastructure for engineering-first teams.
-            </h2>
-            <p className="max-w-xl text-base text-white/70">
-              Build a talent graph from live GitHub data, benchmark skills instantly, and spin up curated pipelines in hours—not weeks.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/register">
-                <Button size="lg" className="rounded-[999px] px-8">
-                  Join the talent network
-                  <ArrowUpRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link href="/register-company">
-                <Button variant="secondary" size="lg" className="rounded-[999px] px-8">
-                  Start hiring
-                </Button>
-              </Link>
+      <div className="relative mx-auto w-full max-w-7xl px-4 pt-16 pb-0 sm:px-6 lg:px-12 flex flex-col gap-12">
+        {/* Precision Hiring Section - Only on Home Page */}
+        {isHomePage && (
+          <div className="grid gap-10 rounded-[32px] border border-white/5 bg-white/[0.03] p-10 shadow-[0_20px_80px_rgba(2,6,23,0.55)] backdrop-blur-2xl lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-6">
+              <p className="text-xs uppercase tracking-[0.6em] text-white/60">DevConnect</p>
+              <h2 className="text-4xl font-semibold leading-tight text-white lg:text-5xl">
+                Precision hiring infrastructure for engineering-first teams.
+              </h2>
+              <p className="max-w-xl text-base text-white/70">
+                Build a talent graph from live GitHub data, benchmark skills instantly, and spin up curated pipelines in hours—not weeks.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Link href="/register">
+                  <Button size="lg" className="rounded-[999px] px-8">
+                    Join the talent network
+                    <ArrowUpRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link href="/register-company">
+                  <Button variant="secondary" size="lg" className="rounded-[999px] px-8">
+                    Start hiring
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className=" rounded-[28px] border border-white/5 bg-black/50 p-8">
+              <p className="text-xs uppercase tracking-[0.5em] text-white/60">Signal Snapshot</p>
+              <div className="mt-6 grid gap-6">
+                {[
+                  { label: 'Verified teams', value: '380+', detail: 'B2B SaaS · Fintech · AI' },
+                  { label: 'Avg. time to offer', value: '9 days', detail: 'From intro to signed offer' },
+                  { label: 'Developer community', value: '18k+', detail: 'Engineers in our private network' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+                    <p className="text-sm uppercase tracking-[0.4em] text-white/50">{item.label}</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{item.value}</p>
+                    <p className="text-sm text-white/60">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className=" rounded-[28px] border border-white/5 bg-black/50 p-8">
-            <p className="text-xs uppercase tracking-[0.5em] text-white/60">Signal Snapshot</p>
-            <div className="mt-6 grid gap-6">
-              {[
-                { label: 'Verified teams', value: '380+', detail: 'B2B SaaS · Fintech · AI' },
-                { label: 'Avg. time to offer', value: '9 days', detail: 'From intro to signed offer' },
-                { label: 'Developer community', value: '18k+', detail: 'Engineers in our private network' },
-              ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
-                  <p className="text-sm uppercase tracking-[0.4em] text-white/50">{item.label}</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">{item.value}</p>
-                  <p className="text-sm text-white/60">{item.detail}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        )}
 
         <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
@@ -128,7 +134,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 border-t border-white/10 pt-8 text-sm text-white/60 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 border-t border-white/10 pt-6 pb-0 text-sm text-white/60 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-6">
             <a href="mailto:hello@devconnect.io" className="flex items-center gap-2 hover:text-white">
               <Mail className="h-4 w-4" />
