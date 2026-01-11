@@ -10,9 +10,14 @@ const router = express.Router();
 // Initiate LinkedIn OAuth
 router.get('/authorize', authMiddleware, (req, res) => {
   const clientId = config.linkedin?.clientId || process.env.LINKEDIN_CLIENT_ID;
-  const redirectUri = `${config.clientUrl}/api/linkedin/callback`;
+  
+  // Use explicit redirect URI - must match exactly what's in LinkedIn app settings
+  // For development: http://localhost:3000/api/linkedin/callback
+  // For production: https://yourdomain.com/api/linkedin/callback
+  const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${config.clientUrl}/api/linkedin/callback`;
   const state = req.user.id; // Use user ID as state for security
-  const scope = 'openid profile email w_member_social r_liteprofile r_emailaddress';
+  // Use only OpenID Connect scopes (legacy scopes like r_emailaddress, r_liteprofile are deprecated)
+  const scope = 'openid profile email';
 
   if (!clientId) {
     return res.status(500).json({ 
@@ -20,33 +25,52 @@ router.get('/authorize', authMiddleware, (req, res) => {
     });
   }
 
+  // Log redirect URI for debugging
+  logger.info('LinkedIn OAuth redirect URI', { redirectUri, clientUrl: config.clientUrl });
+
   const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${encodeURIComponent(scope)}`;
   
-  res.json({ authUrl });
+  res.json({ authUrl, redirectUri }); // Include redirectUri in response for debugging
 });
 
 // LinkedIn OAuth callback
-router.get('/callback', authMiddleware, async (req, res) => {
+// Note: No authMiddleware here because LinkedIn redirects without auth token
+// We use the state parameter (user ID) to identify the user
+router.get('/callback', async (req, res) => {
   try {
     const { code, state, error } = req.query;
 
+    logger.info('LinkedIn OAuth callback received', { code: code ? 'present' : 'missing', state, error, queryParams: req.query });
+
     if (error) {
-      logger.error('LinkedIn OAuth error', { error });
+      logger.error('LinkedIn OAuth error from LinkedIn', { error, errorDescription: req.query.error_description });
       return res.redirect(`${config.clientUrl}/profile?error=linkedin_oauth_failed&message=${encodeURIComponent(error)}`);
     }
 
     if (!code) {
-      return res.redirect(`${config.clientUrl}/profile?error=linkedin_oauth_failed`);
+      logger.error('LinkedIn OAuth callback missing code', { query: req.query });
+      return res.redirect(`${config.clientUrl}/profile?error=linkedin_oauth_failed&message=missing_code`);
     }
 
-    // Verify state matches user ID
-    if (state !== req.user.id) {
-      return res.redirect(`${config.clientUrl}/profile?error=invalid_state`);
+    if (!state) {
+      logger.error('LinkedIn OAuth callback missing state', { query: req.query });
+      return res.redirect(`${config.clientUrl}/profile?error=invalid_state&message=missing_state`);
+    }
+
+    // Find user by state (which is the user ID)
+    const user = await prisma.user.findUnique({
+      where: { id: state }
+    });
+
+    if (!user) {
+      logger.error('LinkedIn OAuth callback: User not found', { state });
+      return res.redirect(`${config.clientUrl}/profile?error=user_not_found`);
     }
 
     const clientId = config.linkedin?.clientId || process.env.LINKEDIN_CLIENT_ID;
     const clientSecret = config.linkedin?.clientSecret || process.env.LINKEDIN_CLIENT_SECRET;
-    const redirectUri = `${config.clientUrl}/api/linkedin/callback`;
+    // Use same redirect URI as in authorize endpoint
+    const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${config.clientUrl}/api/linkedin/callback`;
 
     if (!clientId || !clientSecret) {
       logger.error('LinkedIn OAuth credentials not configured');
@@ -54,6 +78,8 @@ router.get('/callback', authMiddleware, async (req, res) => {
     }
 
     // Exchange code for access token
+    logger.info('Exchanging LinkedIn code for access token', { clientId: clientId ? 'present' : 'missing', redirectUri });
+    
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: {
@@ -70,23 +96,50 @@ router.get('/callback', authMiddleware, async (req, res) => {
 
     const tokenData = await tokenResponse.json();
 
+    logger.info('Token response from LinkedIn', { 
+      status: tokenResponse.status,
+      hasError: !!tokenData.error,
+      hasAccessToken: !!tokenData.access_token
+    });
+
     if (tokenData.error) {
-      logger.error('LinkedIn OAuth token error', { error: tokenData.error, description: tokenData.error_description });
-      return res.redirect(`${config.clientUrl}/profile?error=token_exchange_failed`);
+      logger.error('LinkedIn OAuth token error', { 
+        error: tokenData.error, 
+        description: tokenData.error_description,
+        tokenResponse: JSON.stringify(tokenData)
+      });
+      return res.redirect(`${config.clientUrl}/profile?error=token_exchange_failed&message=${encodeURIComponent(tokenData.error_description || tokenData.error)}`);
     }
 
     const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token;
+    const expiresIn = tokenData.expires_in || 5184000; // Default 60 days
+
+    // Store access token and refresh token in user record
+    // Note: In production, encrypt these tokens before storing
+    logger.info('Storing LinkedIn token for user', { userId: user.id });
+    
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        linkedinToken: accessToken, // Store access token
+        linkedinRefreshToken: refreshToken, // Store refresh token if available
+        linkedinTokenExpiresAt: new Date(Date.now() + expiresIn * 1000) // Calculate expiration
+      }
+    });
+
+    logger.info('LinkedIn token stored successfully', { userId: user.id });
 
     // Sync LinkedIn profile immediately
     try {
       const syncResult = await linkedinService.syncLinkedInProfile(
-        req.user.id,
+        user.id,
         accessToken,
         prisma
       );
 
       logger.info('LinkedIn profile synced', { 
-        userId: req.user.id,
+        userId: user.id,
         experience: syncResult.experience,
         education: syncResult.education,
         skills: syncResult.skills
@@ -94,12 +147,12 @@ router.get('/callback', authMiddleware, async (req, res) => {
 
       res.redirect(`${config.clientUrl}/profile?success=linkedin_connected&synced=true`);
     } catch (syncError) {
-      logger.warn('LinkedIn sync failed after OAuth', { error: syncError.message });
+      logger.warn('LinkedIn sync failed after OAuth', { error: syncError.message, userId: user.id });
       res.redirect(`${config.clientUrl}/profile?success=linkedin_connected&synced=false&error=${encodeURIComponent(syncError.message)}`);
     }
   } catch (error) {
-    logger.error('LinkedIn OAuth callback error', { error: error.message });
-    res.redirect(`${config.clientUrl}/profile?error=linkedin_callback_failed`);
+    logger.error('LinkedIn OAuth callback error', { error: error.message, stack: error.stack });
+    res.redirect(`${config.clientUrl}/profile?error=linkedin_callback_failed&message=${encodeURIComponent(error.message)}`);
   }
 });
 

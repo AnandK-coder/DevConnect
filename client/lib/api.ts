@@ -35,6 +35,7 @@ export const profileAPI = {
   updateProfile: (data: any) => api.put('/profile', data),
   syncGitHub: () => api.post('/profile/sync-github'),
   syncLinkedIn: () => api.post('/profile/sync-linkedin'),
+  checkLinkedInStatus: () => api.get('/profile/linkedin-status'),
   getProjects: (id: string) => api.get(`/profile/${id}/projects`),
   createProject: (data: any) => api.post('/profile/projects', data),
 }
@@ -110,6 +111,7 @@ export const adminAPI = {
   updateJobStatus: (id: string, active: boolean) => api.patch(`/admin/jobs/${id}/status`, { active }),
   deleteJob: (id: string) => api.delete(`/admin/jobs/${id}`),
   getUsers: (params?: any) => api.get('/admin/users', { params }),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
   getApplications: (params?: any) => api.get('/admin/applications', { params }),
   updateApplicationStatus: (id: string, status: string) => api.patch(`/admin/applications/${id}/status`, { status }),
 }

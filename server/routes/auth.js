@@ -19,7 +19,7 @@ router.post('/register',
     commonRules.email,
     commonRules.password,
     commonRules.name,
-    body('githubUsername').optional().trim().isLength({ min: 1, max: 39 }),
+    body('githubUsername').optional().trim().isLength({ min: 1, max: 39 }).withMessage('GitHub username must be between 1 and 39 characters'),
     body('role').optional().isIn(['USER', 'COMPANY']).withMessage('Invalid role'),
     body('website').optional().isURL().withMessage('Invalid website URL')
   ],
@@ -27,6 +27,8 @@ router.post('/register',
   async (req, res, next) => {
     try {
       const { email, password, name, githubUsername, role, website } = req.body;
+      
+      logger.info('Registration attempt', { email, name, role, timestamp: new Date() });
 
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({

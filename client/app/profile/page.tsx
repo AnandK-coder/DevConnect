@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { profileAPI, analyticsAPI, githubAPI, linkedinOAuthAPI } from '@/lib/api'
-import { Star, GitFork, ExternalLink, Github, GitCommit, Calendar, Clock, Linkedin } from 'lucide-react'
+import { Star, GitFork, ExternalLink, Github, GitCommit, Calendar, Clock, Linkedin, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import CommitActivityChart from '@/components/CommitActivityChart'
 
@@ -14,6 +14,9 @@ export default function ProfilePage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [expandedCommits, setExpandedCommits] = useState(false)
+  const [expandedProjects, setExpandedProjects] = useState(false)
+  const [linkedinStatus, setLinkedinStatus] = useState<any>(null)
 
   useEffect(() => {
     const userStr = localStorage.getItem('user')
@@ -25,6 +28,20 @@ export default function ProfilePage() {
     setUserId(user.id)
     setUserRole(user.role || 'USER')
   }, [router])
+
+  // Check LinkedIn status
+  useEffect(() => {
+    async function checkStatus() {
+      if (!userId) return
+      try {
+        const response = await profileAPI.checkLinkedInStatus()
+        setLinkedinStatus(response.data)
+      } catch (error) {
+        console.error('Error checking LinkedIn status:', error)
+      }
+    }
+    checkStatus()
+  }, [userId])
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile', userId],
@@ -121,27 +138,51 @@ export default function ProfilePage() {
                 <Linkedin className="h-5 w-5" />
                 {profile?.linkedin ? (
                   <>
-                    <Link
-                      href={`https://www.linkedin.com/in/${profile.linkedin}`}
-                      target="_blank"
-                      className="text-primary hover:underline"
-                    >
-                      LinkedIn Connected
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`https://www.linkedin.com/in/${profile.linkedin}`}
+                        target="_blank"
+                        className="text-primary hover:underline"
+                      >
+                        LinkedIn Connected
+                      </Link>
+                      {linkedinStatus?.status && (
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          linkedinStatus.status.tokenExpired ? 'bg-yellow-100 text-yellow-800' :
+                          linkedinStatus.status.hasSyncedProfile ? 'bg-green-100 text-green-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {linkedinStatus.status.tokenExpired ? '⏰ Token Expired' :
+                           linkedinStatus.status.hasSyncedProfile ? '✅ Synced' :
+                           '⏳ Pending Sync'}
+                        </span>
+                      )}
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={async () => {
                         try {
-                          await profileAPI.syncLinkedIn()
-                          alert('LinkedIn profile synced successfully!')
+                          const response = await profileAPI.syncLinkedIn()
+                          alert(response.data.message || 'LinkedIn profile synced successfully!')
                           window.location.reload()
                         } catch (error: any) {
-                          alert(error.response?.data?.message || 'Failed to sync LinkedIn profile. Please reconnect using OAuth.')
+                          const errorMessage = error.response?.data?.message || 'Failed to sync LinkedIn profile.'
+                          if (error.response?.data?.requiresReauth) {
+                            // Token expired, redirect to OAuth
+                            try {
+                              const authResponse = await linkedinOAuthAPI.authorize()
+                              window.location.href = authResponse.data.authUrl
+                            } catch (authError: any) {
+                              alert('Please reconnect your LinkedIn account using the "Connect LinkedIn" button.')
+                            }
+                          } else {
+                            alert(errorMessage)
+                          }
                         }
                       }}
                     >
-                      Sync LinkedIn
+                      {linkedinStatus?.status?.tokenExpired ? 'Reconnect LinkedIn' : 'Sync LinkedIn'}
                     </Button>
                   </>
                 ) : (
@@ -234,22 +275,46 @@ export default function ProfilePage() {
         {userRole !== 'ADMIN' && profile?.githubUsername && (
           <Card>
             <CardHeader>
-              <CardTitle>Recent GitHub Commits</CardTitle>
-              <CardDescription>
-                Your latest code contributions
-                {commitActivity && (
-                  <span className="ml-2 text-primary">
-                    • {commitActivity.totalCommits} commits in last 30 days
-                  </span>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle>Recent GitHub Commits</CardTitle>
+                  <CardDescription>
+                    Your latest code contributions
+                    {commitActivity && (
+                      <span className="ml-2 text-primary">
+                        • {commitActivity.totalCommits} commits in last 30 days
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                {commits && commits.length > 5 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpandedCommits(!expandedCommits)}
+                    className="flex items-center gap-2"
+                  >
+                    {expandedCommits ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        <span>Collapse</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        <span>View All ({commits.length})</span>
+                      </>
+                    )}
+                  </Button>
                 )}
-              </CardDescription>
+              </div>
             </CardHeader>
             <CardContent>
               {commitsLoading ? (
                 <p className="text-muted-foreground">Loading commits...</p>
               ) : commits && commits.length > 0 ? (
                 <div className="space-y-3">
-                  {commits.slice(0, 10).map((commit: any) => (
+                  {(expandedCommits ? commits : commits.slice(0, 5)).map((commit: any) => (
                     <div
                       key={commit.sha}
                       className="border rounded-lg p-3 hover:bg-accent/50 transition-colors"
@@ -285,21 +350,10 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   ))}
-                  {commits.length > 10 && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      asChild
-                    >
-                      <a
-                        href={`https://github.com/${profile.githubUsername}?tab=repositories`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View All on GitHub
-                        <ExternalLink className="h-4 w-4 ml-2" />
-                      </a>
-                    </Button>
+                  {commits.length > 5 && !expandedCommits && (
+                    <div className="text-center text-sm text-muted-foreground py-2">
+                      +{commits.length - 5} more commits
+                    </div>
                   )}
                 </div>
               ) : (
@@ -315,58 +369,96 @@ export default function ProfilePage() {
         {userRole !== 'ADMIN' && (
           <Card>
             <CardHeader>
-              <CardTitle>Projects</CardTitle>
-              <CardDescription>Your showcased projects</CardDescription>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle>Projects</CardTitle>
+                  <CardDescription>
+                    Your showcased projects
+                    {profile?.projects && profile.projects.length > 0 && (
+                      <span className="ml-2 text-primary">
+                        • {profile.projects.length} total
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                {profile?.projects && profile.projects.length > 6 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpandedProjects(!expandedProjects)}
+                    className="flex items-center gap-2"
+                  >
+                    {expandedProjects ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        <span>Collapse</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        <span>View All ({profile.projects.length})</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {profile?.projects && profile.projects.length > 0 ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {profile.projects.map((project: any) => (
-                    <Card key={project.id}>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{project.name}</CardTitle>
-                        <CardDescription>{project.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {project.techStack?.slice(0, 3).map((tech: string) => (
-                            <span
-                              key={tech}
-                              className="px-2 py-1 text-xs rounded-md bg-secondary"
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4" />
-                            <span>{project.stars}</span>
+                <div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {(expandedProjects ? profile.projects : profile.projects.slice(0, 6)).map((project: any) => (
+                      <Card key={project.id}>
+                        <CardHeader>
+                          <CardTitle className="text-lg">{project.name}</CardTitle>
+                          <CardDescription>{project.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {project.techStack?.slice(0, 3).map((tech: string) => (
+                              <span
+                                key={tech}
+                                className="px-2 py-1 text-xs rounded-md bg-secondary"
+                              >
+                                {tech}
+                              </span>
+                            ))}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <GitFork className="h-4 w-4" />
-                            <span>{project.forks}</span>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                            <div className="flex items-center gap-1">
+                              <Star className="h-4 w-4" />
+                              <span>{project.stars}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <GitFork className="h-4 w-4" />
+                              <span>{project.forks}</span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={project.githubUrl} target="_blank">
-                              <Github className="h-4 w-4 mr-2" />
-                              GitHub
-                            </Link>
-                          </Button>
-                          {project.liveUrl && (
+                          <div className="flex gap-2">
                             <Button variant="outline" size="sm" asChild>
-                              <Link href={project.liveUrl} target="_blank">
-                                <ExternalLink className="h-4 w-4 mr-2" />
-                                Live Demo
+                              <Link href={project.githubUrl} target="_blank">
+                                <Github className="h-4 w-4 mr-2" />
+                                GitHub
                               </Link>
                             </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                            {project.liveUrl && (
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={project.liveUrl} target="_blank">
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Live Demo
+                                </Link>
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  {profile.projects.length > 6 && !expandedProjects && (
+                    <div className="text-center text-sm text-muted-foreground py-4">
+                      +{profile.projects.length - 6} more projects
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-muted-foreground">No projects yet. Sync your GitHub to get started!</p>

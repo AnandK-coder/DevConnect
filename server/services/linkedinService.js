@@ -1,15 +1,29 @@
 const axios = require('axios');
+const logger = require('../lib/logger');
 
 /**
  * Get LinkedIn user profile using access token (OpenID Connect)
  */
 async function getLinkedInProfile(accessToken) {
   try {
+    if (!accessToken || accessToken === 'undefined' || accessToken === '') {
+      throw new Error('Invalid access token provided');
+    }
+
+    logger.info('Fetching LinkedIn profile via OpenID Connect', { 
+      tokenPresent: !!accessToken,
+      tokenLength: accessToken?.length 
+    });
+
     const response = await axios.get('https://api.linkedin.com/v2/userinfo', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
+    });
+
+    logger.info('LinkedIn OpenID Connect successful', { 
+      linkedinId: response.data.sub 
     });
 
     return {
@@ -23,7 +37,11 @@ async function getLinkedInProfile(accessToken) {
     };
   } catch (error) {
     // If OpenID Connect fails, try legacy API
-    console.warn('LinkedIn OpenID Connect failed, trying legacy API:', error.response?.data || error.message);
+    logger.warn('LinkedIn OpenID Connect failed, trying legacy API', { 
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data 
+    });
     return getLinkedInProfileLegacy(accessToken);
   }
 }
@@ -33,6 +51,10 @@ async function getLinkedInProfile(accessToken) {
  */
 async function getLinkedInProfileLegacy(accessToken) {
   try {
+    logger.info('Attempting LinkedIn legacy API profile fetch', { 
+      tokenPresent: !!accessToken 
+    });
+
     // Get basic profile info
     const profileResponse = await axios.get('https://api.linkedin.com/v2/me', {
       headers: {
@@ -42,6 +64,10 @@ async function getLinkedInProfileLegacy(accessToken) {
       params: {
         projection: '(id,firstName,lastName,profilePicture(displayImage~:playableStreams))'
       }
+    });
+
+    logger.info('LinkedIn legacy profile API successful', { 
+      linkedinId: profileResponse.data.id 
     });
 
     // Get email
@@ -61,8 +87,12 @@ async function getLinkedInProfileLegacy(accessToken) {
       if (emailResponse.data.elements && emailResponse.data.elements.length > 0) {
         email = emailResponse.data.elements[0]['handle~']?.emailAddress;
       }
+      logger.info('LinkedIn email fetch successful', { emailFound: !!email });
     } catch (emailError) {
-      console.warn('Could not fetch LinkedIn email:', emailError.message);
+      logger.warn('Could not fetch LinkedIn email', { 
+        error: emailError.message,
+        status: emailError.response?.status 
+      });
     }
 
     const firstName = profileResponse.data.firstName?.localized?.en_US || 
@@ -88,8 +118,12 @@ async function getLinkedInProfileLegacy(accessToken) {
       linkedinId: profileResponse.data.id
     };
   } catch (error) {
-    console.error('LinkedIn Profile API Error:', error.response?.data || error.message);
-    throw new Error('Failed to fetch LinkedIn profile');
+    logger.error('LinkedIn Profile API Error', { 
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data 
+    });
+    throw new Error(`Failed to fetch LinkedIn profile: ${error.message}`);
   }
 }
 
@@ -98,6 +132,8 @@ async function getLinkedInProfileLegacy(accessToken) {
  */
 async function getLinkedInExperience(accessToken) {
   try {
+    logger.info('Fetching LinkedIn experience', { tokenPresent: !!accessToken });
+
     const response = await axios.get('https://api.linkedin.com/v2/positions', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -109,9 +145,15 @@ async function getLinkedInExperience(accessToken) {
       }
     });
 
-    return response.data.elements || [];
+    const experience = response.data.elements || [];
+    logger.info('LinkedIn experience fetch successful', { count: experience.length });
+    return experience;
   } catch (error) {
-    console.error('LinkedIn Experience API Error:', error.response?.data || error.message);
+    logger.warn('LinkedIn Experience API Error', { 
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data 
+    });
     return [];
   }
 }
@@ -121,6 +163,8 @@ async function getLinkedInExperience(accessToken) {
  */
 async function getLinkedInEducation(accessToken) {
   try {
+    logger.info('Fetching LinkedIn education', { tokenPresent: !!accessToken });
+
     const response = await axios.get('https://api.linkedin.com/v2/educations', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -132,9 +176,15 @@ async function getLinkedInEducation(accessToken) {
       }
     });
 
-    return response.data.elements || [];
+    const education = response.data.elements || [];
+    logger.info('LinkedIn education fetch successful', { count: education.length });
+    return education;
   } catch (error) {
-    console.error('LinkedIn Education API Error:', error.response?.data || error.message);
+    logger.warn('LinkedIn Education API Error', { 
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data 
+    });
     return [];
   }
 }
@@ -144,6 +194,8 @@ async function getLinkedInEducation(accessToken) {
  */
 async function getLinkedInSkills(accessToken) {
   try {
+    logger.info('Fetching LinkedIn skills', { tokenPresent: !!accessToken });
+
     const response = await axios.get('https://api.linkedin.com/v2/skills', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -155,9 +207,15 @@ async function getLinkedInSkills(accessToken) {
       }
     });
 
-    return (response.data.elements || []).map(skill => skill.name);
+    const skills = (response.data.elements || []).map(skill => skill.name);
+    logger.info('LinkedIn skills fetch successful', { count: skills.length });
+    return skills;
   } catch (error) {
-    console.error('LinkedIn Skills API Error:', error.response?.data || error.message);
+    logger.warn('LinkedIn Skills API Error', { 
+      error: error.message,
+      status: error.response?.status,
+      data: error.response?.data 
+    });
     return [];
   }
 }
@@ -167,21 +225,32 @@ async function getLinkedInSkills(accessToken) {
  */
 async function syncLinkedInProfile(userId, accessToken, prisma) {
   try {
+    logger.info('Starting LinkedIn profile sync', { userId, tokenPresent: !!accessToken });
+
     // Try new API first, fallback to legacy
     let profile;
     try {
+      logger.info('Attempting OpenID Connect profile fetch');
       profile = await getLinkedInProfile(accessToken);
+      logger.info('Successfully fetched LinkedIn profile', { linkedinId: profile.linkedinId });
     } catch (error) {
-      console.warn('New LinkedIn API failed, trying legacy API:', error.message);
+      logger.warn('New LinkedIn API failed, trying legacy API', { error: error.message });
       profile = await getLinkedInProfileLegacy(accessToken);
     }
 
     // Get additional data
+    logger.info('Fetching additional LinkedIn data (experience, education, skills)');
     const [experience, education, skills] = await Promise.all([
       getLinkedInExperience(accessToken).catch(() => []),
       getLinkedInEducation(accessToken).catch(() => []),
       getLinkedInSkills(accessToken).catch(() => [])
     ]);
+
+    logger.info('Additional LinkedIn data fetched', { 
+      experienceCount: experience.length,
+      educationCount: education.length,
+      skillsCount: skills.length
+    });
 
     // Calculate experience years from positions
     let totalExperience = 0;
@@ -200,10 +269,15 @@ async function syncLinkedInProfile(userId, accessToken, prisma) {
       });
     }
 
+    logger.info('Calculated experience from LinkedIn', { totalExperience: totalExperience.toFixed(1) });
+
     // Update user profile
     const updateData = {
       linkedin: profile.linkedinId || profile.id || null,
-      avatar: profile.picture || profile.profilePicture || null
+      avatar: profile.picture || profile.profilePicture || null,
+      linkedinProfile: profile,  // Store full profile data
+      linkedinExperience: experience,  // Store all experience entries
+      linkedinEducation: education  // Store all education entries
     };
 
     // Update skills if LinkedIn skills are available
@@ -213,6 +287,10 @@ async function syncLinkedInProfile(userId, accessToken, prisma) {
       const linkedinSkills = skills.map(s => s.trim()).filter(Boolean);
       const combinedSkills = Array.from(new Set([...existingSkills, ...linkedinSkills]));
       updateData.skills = combinedSkills;
+      logger.info('Updated skills from LinkedIn', { 
+        newSkillsCount: linkedinSkills.length,
+        totalSkillsCount: combinedSkills.length
+      });
     }
 
     // Update experience if calculated
@@ -220,6 +298,11 @@ async function syncLinkedInProfile(userId, accessToken, prisma) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       const currentExperience = user?.experience || 0;
       updateData.experience = Math.max(currentExperience, Math.floor(totalExperience));
+      logger.info('Updated experience from LinkedIn', { 
+        yearsFromLinkedIn: Math.floor(totalExperience),
+        previousYears: currentExperience,
+        finalYears: updateData.experience
+      });
     }
 
     // Update bio with LinkedIn summary if available
@@ -227,13 +310,18 @@ async function syncLinkedInProfile(userId, accessToken, prisma) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user?.bio) {
         updateData.bio = profile.summary;
+        logger.info('Updated bio from LinkedIn profile');
       }
     }
+
+    logger.info('Updating user in database', { userId, fieldsToUpdate: Object.keys(updateData) });
 
     await prisma.user.update({
       where: { id: userId },
       data: updateData
     });
+
+    logger.info('LinkedIn profile sync completed successfully', { userId });
 
     return {
       profile,
@@ -243,8 +331,12 @@ async function syncLinkedInProfile(userId, accessToken, prisma) {
       totalExperience: Math.floor(totalExperience)
     };
   } catch (error) {
-    console.error('LinkedIn Sync Error:', error);
-    throw new Error('Failed to sync LinkedIn profile');
+    logger.error('LinkedIn Sync Error', { 
+      userId,
+      error: error.message,
+      stack: error.stack 
+    });
+    throw new Error(`Failed to sync LinkedIn profile: ${error.message}`);
   }
 }
 

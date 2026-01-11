@@ -10,8 +10,8 @@ function getOctokit(token = null) {
   
   // Use app credentials if available
   const appToken = process.env.GITHUB_TOKEN || process.env.GITHUB_CLIENT_SECRET;
-  if (!appToken) {
-    throw new Error('GitHub token not configured. Please set GITHUB_TOKEN or GITHUB_CLIENT_SECRET in environment variables.');
+  if (!appToken || appToken === 'your-github-token' || appToken === 'your_github_token') {
+    throw new Error('GitHub token not configured. Please set a valid GITHUB_TOKEN in environment variables. You can generate a Personal Access Token from https://github.com/settings/tokens');
   }
   
   return new Octokit({ auth: appToken });
@@ -275,8 +275,13 @@ async function getUserCommitActivity(username, token = null, days = 30) {
  */
 async function syncUserRepositories(userId, githubUsername, token = null, prisma) {
   try {
-    // Check if we have a token before attempting sync
-    if (!token && !process.env.GITHUB_TOKEN && !process.env.GITHUB_CLIENT_SECRET) {
+    // Check if we have a valid token before attempting sync
+    const envToken = process.env.GITHUB_TOKEN || process.env.GITHUB_CLIENT_SECRET;
+    if (!token && (!envToken || envToken === 'your-github-token' || envToken === 'your_github_token')) {
+      throw new Error('GitHub token not configured. Please set a valid GITHUB_TOKEN in environment variables. You can generate a Personal Access Token from https://github.com/settings/tokens with "repo" and "user:email" scopes.');
+    }
+
+    if (!token && !envToken) {
       throw new Error('GitHub token not configured. Please set GITHUB_TOKEN or GITHUB_CLIENT_SECRET in environment variables. For public repositories, you can still view them but syncing requires authentication.');
     }
 

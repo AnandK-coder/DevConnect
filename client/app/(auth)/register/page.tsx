@@ -53,9 +53,14 @@ export default function RegisterPage() {
       localStorage.setItem('user', JSON.stringify(response.data.user))
       router.push('/dashboard')
     } catch (err: any) {
+      console.error('Registration error:', err.response?.data);
       const responseErrors = err.response?.data?.errors
       if (Array.isArray(responseErrors) && responseErrors.length > 0) {
-        setFieldErrors(responseErrors.map((e: any) => e.msg || e.message))
+        // Map errors to show field name and message
+        setFieldErrors(responseErrors.map((e: any) => {
+          const fieldName = e.param ? `${e.param.charAt(0).toUpperCase() + e.param.slice(1)}: ` : ''
+          return fieldName + (e.msg || e.message || 'Invalid value')
+        }))
         setError(err.response?.data?.message || 'Validation failed')
       } else {
         setError(err.response?.data?.message || 'Registration failed')
@@ -163,7 +168,6 @@ export default function RegisterPage() {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
                 minLength={8}
-                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}"
                 title="Minimum 8 characters with uppercase, lowercase, and a number"
               />
               <p className="text-xs text-white/60">

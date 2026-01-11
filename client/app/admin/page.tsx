@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { adminAPI } from '@/lib/api'
-import { Users, Briefcase, FileText, Code, TrendingUp, Clock } from 'lucide-react'
+import { Users, Briefcase, FileText, Code, TrendingUp, Clock, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AdminDashboard() {
@@ -115,9 +115,9 @@ export default function AdminDashboard() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <>
-            {/* Stats Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              <Card>
+            {/* Stats Grid - Improved Layout */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <Card className="md:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Users</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
@@ -128,7 +128,7 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="md:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
                   <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -139,7 +139,7 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="md:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Applications</CardTitle>
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -150,7 +150,7 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="md:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
                   <Code className="h-4 w-4 text-muted-foreground" />
@@ -162,11 +162,11 @@ export default function AdminDashboard() {
               </Card>
             </div>
 
-            {/* Recent Users */}
+            {/* Recent Users - Full Width */}
             <Card>
               <CardHeader>
                 <CardTitle>Recent Users</CardTitle>
-                <CardDescription>Latest registered users</CardDescription>
+                <CardDescription>Latest registered users on the platform</CardDescription>
               </CardHeader>
               <CardContent>
                 {statsLoading ? (
@@ -174,14 +174,14 @@ export default function AdminDashboard() {
                 ) : recentUsers.length > 0 ? (
                   <div className="space-y-4">
                     {recentUsers.map((u: any) => (
-                      <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
+                      <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-secondary/50 transition-colors">
+                        <div className="flex-1">
                           <p className="font-medium">{u.name}</p>
                           <p className="text-sm text-muted-foreground">{u.email}</p>
                         </div>
-                        <div className="text-right">
-                          <div className="flex gap-2 mb-1">
-                            <span className={`text-xs px-2 py-1 rounded ${
+                        <div className="flex items-center gap-3 mr-4">
+                          <div className="flex gap-2">
+                            <span className={`text-xs px-2 py-1 rounded font-medium ${
                               u.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
                               u.role === 'COMPANY' ? 'bg-blue-100 text-blue-800' :
                               'bg-secondary'
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
                             </span>
                             <span className="text-xs px-2 py-1 rounded bg-secondary">{u.subscription}</span>
                           </div>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground min-w-fit">
                             {new Date(u.createdAt).toLocaleDateString()}
                           </p>
                         </div>
@@ -369,17 +369,38 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                         <div className="text-right ml-4">
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground mb-2">
                             Joined {new Date(u.createdAt).toLocaleDateString()}
                           </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-2"
-                            asChild
-                          >
-                            <Link href={`/profile/${u.id}`}>View Profile</Link>
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                            >
+                              <Link href={`/profile/${u.id}`}>View Profile</Link>
+                            </Button>
+                            {u.role !== 'ADMIN' && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={async () => {
+                                  if (confirm(`Are you sure you want to delete ${u.name}? This action cannot be undone.`)) {
+                                    try {
+                                      await adminAPI.deleteUser(u.id)
+                                      queryClient.invalidateQueries({ queryKey: ['adminUsers'] })
+                                      queryClient.invalidateQueries({ queryKey: ['adminStats'] })
+                                      alert(`${u.name} has been deleted successfully`)
+                                    } catch (error: any) {
+                                      alert(error.response?.data?.message || 'Failed to delete user')
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -484,7 +505,7 @@ export default function AdminDashboard() {
           </Card>
         )}
       </div>
-    </div>
+    
   )
 }
 

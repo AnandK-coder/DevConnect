@@ -23,6 +23,12 @@ model User {
   avatar        String?
   website       String?
   linkedin      String?
+  linkedinToken String?  // Store LinkedIn OAuth access token (encrypt in production)
+  linkedinRefreshToken String?  // Store LinkedIn OAuth refresh token
+  linkedinTokenExpiresAt DateTime?  // Token expiration date
+  linkedinExperience Json?  // Store LinkedIn experience/positions
+  linkedinEducation Json?   // Store LinkedIn education
+  linkedinProfile Json?     // Store full LinkedIn profile data
   twitter       String?
   role          UserRole  @default(USER)
   subscription  Subscription @default(FREE)

@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const prisma = require('../lib/prisma');
 const authMiddleware = require('../middleware/auth');
 const githubService = require('../services/githubService');
+const linkedinService = require('../services/linkedinService');
 
 const router = express.Router();
 
@@ -185,12 +186,54 @@ router.post('/sync-linkedin', authMiddleware, async (req, res) => {
       });
     }
 
-    // For manual sync, we need the access token
-    // In production, store this securely in database
-    // For now, return a message to use OAuth
-    return res.status(400).json({
-      message: 'Please use the "Connect LinkedIn" button to sync your profile. Manual sync requires OAuth authentication.'
-    });
+    // Check if we have a stored access token
+    let accessToken = user.linkedinToken;
+    
+    // If token is expired or missing, need to re-authenticate
+    if (!accessToken || (user.linkedinTokenExpiresAt && new Date(user.linkedinTokenExpiresAt) < new Date())) {
+      return res.status(401).json({
+        message: 'LinkedIn token expired. Please reconnect your LinkedIn account.',
+        requiresReauth: true
+      });
+    }
+
+    // Use stored token to sync
+    try {
+      const syncResult = await linkedinService.syncLinkedInProfile(
+        req.user.id,
+        accessToken,
+        prisma
+      );
+
+      return res.json({
+        message: 'LinkedIn profile synced successfully',
+        synced: true,
+        experience: syncResult.experience,
+        education: syncResult.education,
+        skills: syncResult.skills
+      });
+    } catch (syncError) {
+      console.error('LinkedIn sync error:', syncError);
+      
+      // If token is invalid, clear it and ask for re-auth
+      if (syncError.response?.status === 401 || syncError.message?.includes('401')) {
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: {
+            linkedinToken: null,
+            linkedinRefreshToken: null,
+            linkedinTokenExpiresAt: null
+          }
+        });
+        
+        return res.status(401).json({
+          message: 'LinkedIn token is invalid. Please reconnect your LinkedIn account.',
+          requiresReauth: true
+        });
+      }
+      
+      throw syncError;
+    }
   } catch (error) {
     console.error('Sync LinkedIn Error:', error);
     res.status(500).json({ 
@@ -351,6 +394,70 @@ router.post('/projects', authMiddleware, [
   } catch (error) {
     console.error('Create Project Error:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Diagnostic endpoint - Check LinkedIn connection status
+router.get('/linkedin-status', authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        linkedin: true,
+        linkedinToken: true,
+        linkedinRefreshToken: true,
+        linkedinTokenExpiresAt: true,
+        linkedinProfile: true,
+        linkedinExperience: true,
+        linkedinEducation: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const now = new Date();
+    const tokenExpired = user.linkedinTokenExpiresAt && new Date(user.linkedinTokenExpiresAt) < now;
+
+    res.json({
+      status: {
+        connected: !!user.linkedin,
+        hasToken: !!user.linkedinToken,
+        hasRefreshToken: !!user.linkedinRefreshToken,
+        tokenExpired: tokenExpired,
+        hasSyncedProfile: !!user.linkedinProfile,
+        experienceCount: Array.isArray(user.linkedinExperience) ? user.linkedinExperience.length : 0,
+        educationCount: Array.isArray(user.linkedinEducation) ? user.linkedinEducation.length : 0
+      },
+      linkedinId: user.linkedin || null,
+      tokenExpiresAt: user.linkedinTokenExpiresAt || null,
+      profileData: user.linkedinProfile ? {
+        name: user.linkedinProfile.name,
+        email: user.linkedinProfile.email,
+        linkedinId: user.linkedinProfile.linkedinId || user.linkedinProfile.id
+      } : null,
+      summary: {
+        text: tokenExpired ? 'Token expired - needs reconnection' :
+              !user.linkedin ? 'Not connected' :
+              !user.linkedinToken ? 'Connected but no token' :
+              !user.linkedinProfile ? 'Connected but not synced' :
+              'Fully connected and synced',
+        recommendation: tokenExpired ? 'Click "Connect LinkedIn" to reconnect' :
+                        !user.linkedin ? 'Click "Connect LinkedIn" to authorize' :
+                        !user.linkedinProfile ? 'Click "Sync LinkedIn" to fetch profile data' :
+                        'Everything is working properly'
+      }
+    });
+  } catch (error) {
+    console.error('LinkedIn Status Check Error:', error);
+    res.status(500).json({ 
+      message: 'Error checking LinkedIn status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

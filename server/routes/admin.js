@@ -198,6 +198,48 @@ router.get('/users', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+// Delete user
+router.delete('/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.user;
+
+    // Prevent deleting yourself
+    if (id === req.user.id) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Delete all related data
+    await Promise.all([
+      prisma.project.deleteMany({ where: { userId: id } }),
+      prisma.jobMatch.deleteMany({ where: { userId: id } }),
+      prisma.application.deleteMany({ where: { userId: id } }),
+      prisma.codeReview.deleteMany({ where: { userId: id } }),
+      prisma.interview.deleteMany({ where: { userId: id } }),
+      prisma.communityMember.deleteMany({ where: { userId: id } })
+    ]);
+
+    // Delete the user
+    await prisma.user.delete({
+      where: { id }
+    });
+
+    logger.info('User deleted by admin', { deletedUserId: id, adminId: req.user.id });
+    res.json({ message: `User ${user.name} (${user.email}) deleted successfully` });
+  } catch (error) {
+    logger.error('Admin delete user error', { error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // Get all applications
 router.get('/applications', authMiddleware, adminMiddleware, async (req, res) => {
   try {
