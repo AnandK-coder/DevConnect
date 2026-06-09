@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { companyAPI } from '@/lib/api'
 import { Briefcase, FileText, Users, TrendingUp, Plus } from 'lucide-react'
 import Link from 'next/link'
 
-export default function CompanyDashboard() {
+function CompanyDashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [user, setUser] = useState<any>(null)
@@ -343,6 +343,14 @@ export default function CompanyDashboard() {
           </Card>
         )}
     </div>
+  )
+}
+
+export default function CompanyDashboard() {
+  return (
+    <Suspense fallback={<div className="page-shell-wide"><p className="text-muted-foreground text-center py-12">Loading dashboard...</p></div>}>
+      <CompanyDashboardContent />
+    </Suspense>
   )
 }
 

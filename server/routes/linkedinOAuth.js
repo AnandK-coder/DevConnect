@@ -10,27 +10,62 @@ const router = express.Router();
 // Initiate LinkedIn OAuth
 router.get('/authorize', authMiddleware, (req, res) => {
   const clientId = config.linkedin?.clientId || process.env.LINKEDIN_CLIENT_ID;
+  const clientSecret = config.linkedin?.clientSecret || process.env.LINKEDIN_CLIENT_SECRET;
   
   // Use explicit redirect URI - must match exactly what's in LinkedIn app settings
-  // For development: http://localhost:3000/api/linkedin/callback
+  // For development: http://localhost:5000/api/linkedin/callback
   // For production: https://yourdomain.com/api/linkedin/callback
-  const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${config.clientUrl}/api/linkedin/callback`;
-  const state = req.user.id; // Use user ID as state for security
+  const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${config.apiUrl || 'http://localhost:5000'}/api/linkedin/callback`;
+  
+  // Create unique state: userId + timestamp to avoid caching issues between users
+  const timestamp = Date.now();
+  const state = `${req.user.id}:${timestamp}`;
+  
   // Use only OpenID Connect scopes (legacy scopes like r_emailaddress, r_liteprofile are deprecated)
+  // For development, try with auth_type parameter
   const scope = 'openid profile email';
 
-  if (!clientId) {
+  if (!clientId || !clientSecret) {
+    logger.error('LinkedIn OAuth not configured', { 
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret
+    });
     return res.status(500).json({ 
-      message: 'LinkedIn OAuth not configured. Please set LINKEDIN_CLIENT_ID in environment variables.' 
+      message: 'LinkedIn OAuth not configured. Please set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET in environment variables.' 
     });
   }
 
-  // Log redirect URI for debugging
-  logger.info('LinkedIn OAuth redirect URI', { redirectUri, clientUrl: config.clientUrl });
+  // Log redirect URI and other params for debugging
+  logger.info('LinkedIn OAuth authorize endpoint', { 
+    redirectUri,
+    clientId: clientId ? 'present' : 'missing',
+    scope,
+    state: state ? 'present' : 'missing'
+  });
 
-  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${encodeURIComponent(scope)}`;
+  // Build authorization URL with all required parameters
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    state: state,
+    scope: scope,
+    // Use reckless mode for development to bypass LinkedIn's permission list UI issues
+    auth_type: 'reckless'
+  });
+
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
   
-  res.json({ authUrl, redirectUri }); // Include redirectUri in response for debugging
+  logger.info('Generated LinkedIn auth URL', { authUrl: authUrl.substring(0, 100) + '...' });
+
+  res.json({ 
+    authUrl, 
+    redirectUri,
+    debug: {
+      clientIdPresent: !!clientId,
+      redirectUri: redirectUri
+    }
+  });
 });
 
 // LinkedIn OAuth callback
@@ -57,20 +92,28 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${config.clientUrl}/profile?error=invalid_state&message=missing_state`);
     }
 
-    // Find user by state (which is the user ID)
+    // Extract user ID from state (format: userId:timestamp)
+    const userId = state.split(':')[0];
+    
+    if (!userId) {
+      logger.error('LinkedIn OAuth callback: Invalid state format', { state });
+      return res.redirect(`${config.clientUrl}/profile?error=invalid_state&message=malformed_state`);
+    }
+
+    // Find user by extracted ID
     const user = await prisma.user.findUnique({
-      where: { id: state }
+      where: { id: userId }
     });
 
     if (!user) {
-      logger.error('LinkedIn OAuth callback: User not found', { state });
+      logger.error('LinkedIn OAuth callback: User not found', { userId });
       return res.redirect(`${config.clientUrl}/profile?error=user_not_found`);
     }
 
     const clientId = config.linkedin?.clientId || process.env.LINKEDIN_CLIENT_ID;
     const clientSecret = config.linkedin?.clientSecret || process.env.LINKEDIN_CLIENT_SECRET;
     // Use same redirect URI as in authorize endpoint
-    const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${config.clientUrl}/api/linkedin/callback`;
+    const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${config.apiUrl}/api/linkedin/callback`;
 
     if (!clientId || !clientSecret) {
       logger.error('LinkedIn OAuth credentials not configured');

@@ -35,9 +35,11 @@ export default function ProfilePage() {
       if (!userId) return
       try {
         const response = await profileAPI.checkLinkedInStatus()
+        console.log('LinkedIn status response:', response.data)
         setLinkedinStatus(response.data)
       } catch (error) {
         console.error('Error checking LinkedIn status:', error)
+        setLinkedinStatus(null)
       }
     }
     checkStatus()
@@ -158,32 +160,78 @@ export default function ProfilePage() {
                         </span>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          const response = await profileAPI.syncLinkedIn()
-                          alert(response.data.message || 'LinkedIn profile synced successfully!')
-                          window.location.reload()
-                        } catch (error: any) {
-                          const errorMessage = error.response?.data?.message || 'Failed to sync LinkedIn profile.'
-                          if (error.response?.data?.requiresReauth) {
-                            // Token expired, redirect to OAuth
-                            try {
-                              const authResponse = await linkedinOAuthAPI.authorize()
-                              window.location.href = authResponse.data.authUrl
-                            } catch (authError: any) {
-                              alert('Please reconnect your LinkedIn account using the "Connect LinkedIn" button.')
+                    <div className="flex gap-2">
+                      {linkedinStatus?.status?.hasSyncedProfile ? (
+                        // Has token and synced - show Disconnect button
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={async () => {
+                            if (confirm('Are you sure you want to disconnect LinkedIn? This will remove your synced LinkedIn data.')) {
+                              try {
+                                await profileAPI.disconnectLinkedIn()
+                                alert('LinkedIn disconnected successfully!')
+                                window.location.reload()
+                              } catch (error: any) {
+                                alert(error.response?.data?.message || 'Failed to disconnect LinkedIn.')
+                              }
                             }
-                          } else {
-                            alert(errorMessage)
-                          }
-                        }
-                      }}
-                    >
-                      {linkedinStatus?.status?.tokenExpired ? 'Reconnect LinkedIn' : 'Sync LinkedIn'}
-                    </Button>
+                          }}
+                        >
+                          Disconnect LinkedIn
+                        </Button>
+                      ) : (
+                        // Has token but not synced, or token expired - show Sync/Reconnect button
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const response = await profileAPI.syncLinkedIn()
+                              alert(response.data.message || 'LinkedIn profile synced successfully!')
+                              window.location.reload()
+                            } catch (error: any) {
+                              const errorMessage = error.response?.data?.message || 'Failed to sync LinkedIn profile.'
+                              if (error.response?.data?.requiresReauth) {
+                                // Token expired, redirect to OAuth
+                                try {
+                                  console.log('Token expired, initiating LinkedIn OAuth...')
+                                  const authResponse = await linkedinOAuthAPI.authorize()
+                                  console.log('OAuth response:', authResponse.data)
+                                  
+                                  if (!authResponse.data.authUrl) {
+                                    alert('Error: Failed to get LinkedIn authorization URL. Please check console for details.')
+                                    console.error('No authUrl in response:', authResponse.data)
+                                    return
+                                  }
+                                  
+                                  console.log('Redirecting to LinkedIn authorization...')
+                                  // Clear LinkedIn cookies to force fresh session
+                                  document.cookie.split(";").forEach(c => {
+                                    const eqPos = c.indexOf("=");
+                                    const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();
+                                    if (name.toLowerCase().includes('linkedin')) {
+                                      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+                                    }
+                                  });
+                                  // Add nonce to prevent caching
+                                  const nonce = Math.random().toString(36).substring(7);
+                                  const urlWithParams = authResponse.data.authUrl + (authResponse.data.authUrl.includes('?') ? '&' : '?') + `nonce=${nonce}`;
+                                  window.location.href = urlWithParams
+                                } catch (authError: any) {
+                                  console.error('OAuth error:', authError)
+                                  alert('Error: Failed to initiate LinkedIn connection. Please contact support or try again later.')
+                                }
+                              } else {
+                                alert(errorMessage)
+                              }
+                            }
+                          }}
+                        >
+                          {linkedinStatus?.status?.tokenExpired ? 'Reconnect LinkedIn' : 'Sync LinkedIn'}
+                        </Button>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <Button
@@ -191,10 +239,32 @@ export default function ProfilePage() {
                     size="sm"
                     onClick={async () => {
                       try {
+                        console.log('Initiating LinkedIn OAuth authorization...')
                         const response = await linkedinOAuthAPI.authorize()
-                        window.location.href = response.data.authUrl
+                        console.log('Authorization response:', response.data)
+                        
+                        if (!response.data.authUrl) {
+                          alert('Error: Failed to get LinkedIn authorization URL. Please check console for details.')
+                          console.error('No authUrl in response:', response.data)
+                          return
+                        }
+                        
+                        console.log('Redirecting to LinkedIn authorization page...')
+                        // Clear LinkedIn cookies to force fresh session
+                        document.cookie.split(";").forEach(c => {
+                          const eqPos = c.indexOf("=");
+                          const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();
+                          if (name.toLowerCase().includes('linkedin')) {
+                            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+                          }
+                        });
+                        // Add nonce to prevent caching
+                        const nonce = Math.random().toString(36).substring(7);
+                        const urlWithParams = response.data.authUrl + (response.data.authUrl.includes('?') ? '&' : '?') + `nonce=${nonce}`;
+                        window.location.href = urlWithParams
                       } catch (error: any) {
-                        alert(error.response?.data?.message || 'Failed to initiate LinkedIn connection')
+                        console.error('LinkedIn authorization error:', error)
+                        alert(error.response?.data?.message || 'Failed to initiate LinkedIn connection. Please try again.')
                       }
                     }}
                   >

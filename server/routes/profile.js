@@ -7,6 +7,71 @@ const linkedinService = require('../services/linkedinService');
 
 const router = express.Router();
 
+// Diagnostic endpoint - Check LinkedIn connection status
+// MUST be before /:id route to avoid being matched by it
+router.get('/linkedin-status', authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        linkedin: true,
+        linkedinToken: true,
+        linkedinRefreshToken: true,
+        linkedinTokenExpiresAt: true,
+        linkedinProfile: true,
+        linkedinExperience: true,
+        linkedinEducation: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const now = new Date();
+    const tokenExpired = user.linkedinTokenExpiresAt && new Date(user.linkedinTokenExpiresAt) < now;
+
+    res.json({
+      status: {
+        connected: !!user.linkedin,
+        hasToken: !!user.linkedinToken,
+        hasRefreshToken: !!user.linkedinRefreshToken,
+        tokenExpired: tokenExpired,
+        hasSyncedProfile: !!user.linkedinProfile,
+        experienceCount: Array.isArray(user.linkedinExperience) ? user.linkedinExperience.length : 0,
+        educationCount: Array.isArray(user.linkedinEducation) ? user.linkedinEducation.length : 0
+      },
+      linkedinId: user.linkedin || null,
+      tokenExpiresAt: user.linkedinTokenExpiresAt || null,
+      profileData: user.linkedinProfile ? {
+        name: user.linkedinProfile.name,
+        email: user.linkedinProfile.email,
+        linkedinId: user.linkedinProfile.linkedinId || user.linkedinProfile.id
+      } : null,
+      summary: {
+        text: tokenExpired ? 'Token expired - needs reconnection' :
+              !user.linkedin ? 'Not connected' :
+              !user.linkedinToken ? 'Connected but no token' :
+              !user.linkedinProfile ? 'Connected but not synced' :
+              'Fully connected and synced',
+        recommendation: tokenExpired ? 'Click "Connect LinkedIn" to reconnect' :
+                        !user.linkedin ? 'Click "Connect LinkedIn" to authorize' :
+                        !user.linkedinProfile ? 'Click "Sync LinkedIn" to fetch profile data' :
+                        'Everything is working properly'
+      }
+    });
+  } catch (error) {
+    console.error('LinkedIn Status Check Error:', error);
+    res.status(500).json({ 
+      message: 'Error checking LinkedIn status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Get user profile
 router.get('/:id', async (req, res) => {
   try {
@@ -242,6 +307,43 @@ router.post('/sync-linkedin', authMiddleware, async (req, res) => {
   }
 });
 
+// Disconnect LinkedIn
+router.post('/disconnect-linkedin', authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Clear all LinkedIn data
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        linkedin: null,
+        linkedinToken: null,
+        linkedinRefreshToken: null,
+        linkedinTokenExpiresAt: null,
+        linkedinProfile: null,
+        linkedinExperience: null,
+        linkedinEducation: null
+      }
+    });
+
+    res.json({
+      message: 'LinkedIn disconnected successfully',
+      disconnected: true
+    });
+  } catch (error) {
+    console.error('Disconnect LinkedIn Error:', error);
+    res.status(500).json({ 
+      message: error.message || 'Failed to disconnect LinkedIn' 
+    });
+  }
+});
+
 // Sync GitHub repositories
 router.post('/sync-github', authMiddleware, async (req, res) => {
   try {
@@ -394,70 +496,6 @@ router.post('/projects', authMiddleware, [
   } catch (error) {
     console.error('Create Project Error:', error);
     res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Diagnostic endpoint - Check LinkedIn connection status
-router.get('/linkedin-status', authMiddleware, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        linkedin: true,
-        linkedinToken: true,
-        linkedinRefreshToken: true,
-        linkedinTokenExpiresAt: true,
-        linkedinProfile: true,
-        linkedinExperience: true,
-        linkedinEducation: true
-      }
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const now = new Date();
-    const tokenExpired = user.linkedinTokenExpiresAt && new Date(user.linkedinTokenExpiresAt) < now;
-
-    res.json({
-      status: {
-        connected: !!user.linkedin,
-        hasToken: !!user.linkedinToken,
-        hasRefreshToken: !!user.linkedinRefreshToken,
-        tokenExpired: tokenExpired,
-        hasSyncedProfile: !!user.linkedinProfile,
-        experienceCount: Array.isArray(user.linkedinExperience) ? user.linkedinExperience.length : 0,
-        educationCount: Array.isArray(user.linkedinEducation) ? user.linkedinEducation.length : 0
-      },
-      linkedinId: user.linkedin || null,
-      tokenExpiresAt: user.linkedinTokenExpiresAt || null,
-      profileData: user.linkedinProfile ? {
-        name: user.linkedinProfile.name,
-        email: user.linkedinProfile.email,
-        linkedinId: user.linkedinProfile.linkedinId || user.linkedinProfile.id
-      } : null,
-      summary: {
-        text: tokenExpired ? 'Token expired - needs reconnection' :
-              !user.linkedin ? 'Not connected' :
-              !user.linkedinToken ? 'Connected but no token' :
-              !user.linkedinProfile ? 'Connected but not synced' :
-              'Fully connected and synced',
-        recommendation: tokenExpired ? 'Click "Connect LinkedIn" to reconnect' :
-                        !user.linkedin ? 'Click "Connect LinkedIn" to authorize' :
-                        !user.linkedinProfile ? 'Click "Sync LinkedIn" to fetch profile data' :
-                        'Everything is working properly'
-      }
-    });
-  } catch (error) {
-    console.error('LinkedIn Status Check Error:', error);
-    res.status(500).json({ 
-      message: 'Error checking LinkedIn status',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
   }
 });
 

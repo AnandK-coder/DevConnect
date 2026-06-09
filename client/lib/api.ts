@@ -36,6 +36,7 @@ export const profileAPI = {
   syncGitHub: () => api.post('/profile/sync-github'),
   syncLinkedIn: () => api.post('/profile/sync-linkedin'),
   checkLinkedInStatus: () => api.get('/profile/linkedin-status'),
+  disconnectLinkedIn: () => api.post('/profile/disconnect-linkedin'),
   getProjects: (id: string) => api.get(`/profile/${id}/projects`),
   createProject: (data: any) => api.post('/profile/projects', data),
 }

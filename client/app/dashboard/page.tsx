@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { matchingAPI, analyticsAPI } from '@/lib/api'
 import { Briefcase, TrendingUp, Users, Code, Github, Linkedin, User, Zap, ArrowUpRight, Bell } from 'lucide-react'
 import Link from 'next/link'
-import TrendingChart from '@/components/TrendingChart'
 import SkillsComparison from '@/components/SkillsComparison'
 import { notificationsAPI } from '@/lib/api'
 
@@ -227,14 +226,6 @@ export default function DashboardPage() {
           <SkillsComparison 
             userSkills={user.skills} 
             trendingTechs={trendingTechs.technologies} 
-          />
-        )}
-
-        {/* Trending Technologies Chart */}
-        {trendingTechs?.technologies && (
-          <TrendingChart 
-            technologies={trendingTechs.technologies}
-            userSkills={user.skills}
           />
         )}
 

@@ -53,13 +53,13 @@ export default function Navbar() {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)
-    router.push('/login')
+    router.push('/')
   }
 
   const navItems = useMemo(() => {
     const links = [
-      { label: 'Home', href: '/', show: true },
-      { label: 'Jobs', href: '/jobs', show: true },
+      { label: 'Home', href: '/', show: !!user },
+      { label: 'Jobs', href: '/jobs', show: !!user },
       {
         label: 'Dashboard',
         href: '/dashboard',
