@@ -10,6 +10,10 @@ import { formatSalary } from '@/lib/utils'
 import { MapPin, Building, DollarSign, Briefcase } from 'lucide-react'
 import Link from 'next/link'
 
+const stripHtml = (html: string) => {
+  return html ? html.replace(/<[^>]*>/g, '') : '';
+}
+
 export default function JobsPage() {
   const [search, setSearch] = useState('')
   const [location, setLocation] = useState('')
@@ -212,7 +216,7 @@ export default function JobsPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                      {job.description}
+                      {job.external ? stripHtml(job.description) : job.description}
                     </p>
                     <div className="flex flex-wrap gap-4 mb-4 text-sm">
                       {job.location && (

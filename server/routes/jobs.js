@@ -160,7 +160,7 @@ router.post('/seed', async (req, res) => {
   }
 });
 
-// Get all jobs (with caching)
+// Get all jobs (with caching and external API integration)
 router.get('/', cacheMiddleware, async (req, res) => {
   try {
     const { location, remote, search, page = 1, limit = 20, jobType, experienceLevel, minSalary } = req.query;
@@ -204,27 +204,88 @@ router.get('/', cacheMiddleware, async (req, res) => {
       where.salary = { gte: parseInt(minSalary) };
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Fetch all local jobs matching the filters
+    const localJobs = await prisma.job.findMany({
+      where,
+      orderBy: { postedAt: 'desc' }
+    });
 
-    const [jobs, total] = await Promise.all([
-      prisma.job.findMany({
-        where,
-        skip,
-        take: parseInt(limit),
-        orderBy: { postedAt: 'desc' }
-      }),
-      prisma.job.count({ where })
-    ]);
+    // Fetch and filter external jobs in-memory
+    let externalJobs = [];
+    try {
+      const externalJobsService = require('../services/externalJobsService');
+      const allExternalJobs = await externalJobsService.getExternalJobs();
+      
+      externalJobs = allExternalJobs.filter(job => {
+        // Location filter
+        if (location && location.trim() !== '') {
+          if (!job.location.toLowerCase().includes(location.trim().toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // Remote filter
+        if (remote !== undefined && remote !== null && remote !== '') {
+          const isRemote = remote === 'true' || remote === true;
+          if (job.remote !== isRemote) {
+            return false;
+          }
+        }
+        
+        // Search filter
+        if (search && search.trim() !== '') {
+          const query = search.trim().toLowerCase();
+          const matchesTitle = job.title.toLowerCase().includes(query);
+          const matchesCompany = job.company.toLowerCase().includes(query);
+          const matchesDesc = job.description.toLowerCase().includes(query);
+          const matchesTags = job.requirements.some(tag => tag.toLowerCase().includes(query));
+          
+          if (!matchesTitle && !matchesCompany && !matchesDesc && !matchesTags) {
+            return false;
+          }
+        }
+        
+        // Job type filter
+        if (jobType && jobType.trim() !== '') {
+          if (job.jobType !== jobType) {
+            return false;
+          }
+        }
 
-    console.log(`Found ${jobs.length} jobs (total: ${total}) with filters:`, { location, remote, search });
+        // Experience level filter
+        if (experienceLevel && experienceLevel.trim() !== '') {
+          if (job.experienceLevel !== experienceLevel) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+    } catch (extError) {
+      logger.warn('Failed to fetch/filter external jobs, proceeding with local only:', extError.message);
+    }
+
+    // Merge and sort by postedAt desc
+    const combinedJobs = [...localJobs, ...externalJobs].sort((a, b) => {
+      return new Date(b.postedAt) - new Date(a.postedAt);
+    });
+
+    // Pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const total = combinedJobs.length;
+    const skip = (pageNum - 1) * limitNum;
+    const jobs = combinedJobs.slice(skip, skip + limitNum);
+
+    console.log(`Found ${jobs.length} jobs (total combined: ${total}) with filters:`, { location, remote, search });
 
     res.json({
       jobs,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / parseInt(limit))
+        totalPages: Math.ceil(total / limitNum)
       }
     });
   } catch (error) {
@@ -237,6 +298,19 @@ router.get('/', cacheMiddleware, async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (id.startsWith('ext_')) {
+      // Fetch external job from cached jobs
+      const externalJobsService = require('../services/externalJobsService');
+      const externalJobs = await externalJobsService.getExternalJobs();
+      const job = externalJobs.find(j => j.id === id);
+      
+      if (!job) {
+        return res.status(404).json({ message: 'External job not found' });
+      }
+      
+      return res.json({ job });
+    }
 
     const job = await prisma.job.findUnique({
       where: { id },

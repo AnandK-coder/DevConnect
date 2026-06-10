@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { jobsAPI, matchingAPI } from '@/lib/api'
 import { formatSalary, formatDate } from '@/lib/utils'
-import { MapPin, Building, DollarSign, Briefcase, Calendar, ArrowLeft } from 'lucide-react'
+import { MapPin, Building, DollarSign, Briefcase, Calendar, ArrowLeft, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
@@ -147,7 +147,14 @@ export default function JobDetailPage() {
 
             <div className="mb-6">
               <h3 className="font-semibold mb-2">Description</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap">{jobData.description}</p>
+              {jobData.external ? (
+                <div 
+                  className="text-muted-foreground prose prose-invert max-w-none external-job-description"
+                  dangerouslySetInnerHTML={{ __html: jobData.description }}
+                />
+              ) : (
+                <p className="text-muted-foreground whitespace-pre-wrap">{jobData.description}</p>
+              )}
             </div>
 
             {jobData.companyUrl && (
@@ -162,41 +169,57 @@ export default function JobDetailPage() {
         </Card>
 
         {/* Application Form */}
-        {user && (
+        {jobData.external ? (
           <Card>
             <CardHeader>
               <CardTitle>Apply for this Position</CardTitle>
-              <CardDescription>Submit your application to {jobData.company}</CardDescription>
+              <CardDescription>This is an external job posting from {jobData.company}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
-                  <textarea
-                    id="coverLetter"
-                    className="field-base min-h-[140px]"
-                    value={coverLetter}
-                    onChange={(e) => setCoverLetter(e.target.value)}
-                    placeholder="Tell them why you're a great fit..."
-                  />
-                </div>
-                <Button onClick={handleApply} disabled={applying} className="w-full">
-                  {applying ? 'Submitting...' : 'Submit Application'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {!user && (
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground mb-4">You need to be logged in to apply</p>
-              <Button asChild>
-                <Link href="/login">Login to Apply</Link>
+              <Button asChild className="w-full">
+                <a href={jobData.companyUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center">
+                  Apply on Company Site <ExternalLink className="ml-2 h-4 w-4" />
+                </a>
               </Button>
             </CardContent>
           </Card>
+        ) : (
+          <>
+            {user ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Apply for this Position</CardTitle>
+                  <CardDescription>Submit your application to {jobData.company}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
+                      <textarea
+                        id="coverLetter"
+                        className="field-base min-h-[140px]"
+                        value={coverLetter}
+                        onChange={(e) => setCoverLetter(e.target.value)}
+                        placeholder="Tell them why you're a great fit..."
+                      />
+                    </div>
+                    <Button onClick={handleApply} disabled={applying} className="w-full">
+                      {applying ? 'Submitting...' : 'Submit Application'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <p className="text-muted-foreground mb-4">You need to be logged in to apply</p>
+                  <Button asChild>
+                    <Link href="/login">Login to Apply</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
     </div>
   )
